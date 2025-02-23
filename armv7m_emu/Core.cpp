@@ -52,7 +52,6 @@ void Core_mainThread() {
 		}
 	}
 
-
 }
 
 void Core_start(Thread_data* mydata) {
