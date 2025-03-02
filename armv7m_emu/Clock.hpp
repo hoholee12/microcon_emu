@@ -31,14 +31,17 @@
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 extern int Clock_var_maxtickrate;
+extern int Clock_var_tickratemul;	// multiplier for maxtickrate
 
 /* target tickrate(actual tickrate while running) */
 extern int Clock_var_tick;
 
+extern int Clock_var_wake;
+
 enum Clock_type_enum{master, midobj, peri};
 struct Clock_struct {
 	uint32 linked_by; // linked by index
-	uint32 linked_to; // linked to index
+	uint32 groupid;	// TODO: for optimization (reduce timer syscall)
 	uint32 multiplier; // only for midobj. used as percentage (1.0 -> 100, 0.25 -> 25)
 	uint32 baseclock; // only for master. 1 -> 1hz (uint32 4Ghz possible)
 	void (*objfunc)(void);	// linked object function. only for peri(including cpu).
@@ -59,6 +62,19 @@ struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 * uint32 (32bits) -> 32 functions possible at one tick
 */
 extern uint32* Clock_schedule_arr;	// dynamically allocated
+
+
+// static instead of extern, this is only to be used in Clock.
+static inline uint32 Clock_gcd(uint32 a, uint32 b) {
+	while (b != 0) { uint32 temp = b; b = a % b; a = temp; }
+	return a;
+}
+static inline uint32 Clock_lcm(uint32 a, uint32 b) {
+	return (a / Clock_gcd(a, b)) * b;
+}
+
+extern void Clock_pause();
+extern void Clock_resume();
 
 // clockspeed: real base (replaced by master), virtual_clockspeed: simulated
 extern void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed);
