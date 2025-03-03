@@ -58,22 +58,27 @@ static inline void Clock_pause_sleep() {
 void Clock_body()
 {
 	const uint32 one_second = 1000;
-	uint32 sleep_for = one_second;	// TODO: sleep calculator
+	uint32 syncsize = 100; //100ms as base sync (sleep_for +1 if less than, sleep_for -1 if more than)
+	uint32 syncwhen = one_second / syncsize;	// 1sec / syncsize = 10 times every second
+	uint32 sleep_for = one_second / 60;	// 16ms
 
 
 	/*
 	* how to calculate sleep:
+	* base is 60hz (interface updates 60 times per sec) -> 16ms per sleep (we can just adjust this for base accuracy)
 	* 
-	* 1000hz / 1000msec = 1msec per hz
-	* 1000000hz / 1000msec = 
+	* 1000hz (cpu) / 60hz = 16 cycles per frame
 	* 
+	* 16 + 16 + 16 + 16 + 16 + 16 + 17 + 17 + 17 + 17 + 17 + 17 = 200
 	*/
 	uint32 prevTime_msec = Clock_gettime_msec();
 	uint32 now_msec = prevTime_msec;
 	uint32 elapsedTime_msec = prevTime_msec;
 
 	// body loop
+	uint32 loopcount = 0;
 	while (1) {
+		// run + sleep = total frame
 		
 		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse.
 		for (uint32 n = 0; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
@@ -90,14 +95,29 @@ void Clock_body()
 			}
 		}
 
-		now_msec = Clock_gettime_msec();
-		elapsedTime_msec = now_msec - prevTime_msec;
-		prevTime_msec = now_msec;	// next time
-
-		// sleep calculator
-
-
+		// sleep first
 		Sleep(sleep_for);
+		loopcount++;
+
+		/* clock time gets measured here */
+		if (loopcount == syncwhen) {
+			now_msec = Clock_gettime_msec();
+			elapsedTime_msec = now_msec - prevTime_msec;
+			prevTime_msec = now_msec;	// next time
+
+			// sync
+			if (elapsedTime_msec > syncsize) {
+				sleep_for -= 1;
+				// more adjustment
+				syncsize -= elapsedTime_msec - syncsize;
+			}
+			else {
+				sleep_for += 1;
+				syncsize += syncsize - elapsedTime_msec;
+			}
+
+			loopcount = 0;
+		}
 	}
 }
 
