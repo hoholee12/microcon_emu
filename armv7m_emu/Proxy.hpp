@@ -22,4 +22,8 @@ extern DWORD WINAPI ThreadFunc(void* data);
 
 extern HANDLE make_thread(Thread_data* mydata);
 
+extern uint32 Clock_gettime_msec();
+
+extern void Clock_sleep(uint32 msec);
+
 #define NULL 0

@@ -24,6 +24,10 @@ HANDLE make_thread(Thread_data* mydata) {
 	return thread;
 }
 
-uint32 GetTicks_msec() {
+uint32 Clock_gettime_msec() {
 	return GetTickCount();
+}
+
+void Clock_sleep(uint32 msec) {
+	Sleep(msec);
 }

@@ -45,6 +45,7 @@ void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed)
 	Clock_var_wake = 1;
 	Clock_var_tick = virtual_clockspeed;	// this is only to be used to control the speed of overall simulation
 	Clock_var_maxtickrate = 0;				// virtual_clockspeed(Clock_var_tick) does not count in sim scheduling
+	Clock_var_tickratemul = 1; // initial start as 1x
 }
 
 static inline void Clock_pause_sleep() {
@@ -57,21 +58,37 @@ static inline void Clock_pause_sleep() {
 void Clock_body()
 {
 	const uint32 one_second = 1000;
-	uint32 sleep_for = one_second;	// TODO
+	uint32 sleep_for = one_second;	// TODO: sleep calculator
 
+	uint32 prevTime_msec = Clock_gettime_msec();
+	uint32 now_msec = prevTime_msec;
+	uint32 elapsedTime_msec = prevTime_msec;
+
+	// body loop
 	while (1) {
+		
 		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse.
-		for (int i = 0; i < Clock_var_maxtickrate; i++) {
-			uint32 Clock_curmap = Clock_schedule_arr[i];
-			if (Clock_curmap != 0) {	// just check the bitmap in its entirety and skip if there isnt anything to trigger.
-				for (int j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
-					if ((Clock_curmap >> j) & 0x1) {
-						Clock_arr[j].objfunc();	// run!
+		for (uint32 n = 0; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
+			for (int i = 0; i < Clock_var_maxtickrate; i++) {	// main tape roll
+				uint32 Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
+				if (Clock_curmap != 0) {	// just check the bitmap in its entirety and skip if there isnt anything to trigger.
+					for (int j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
+						if ((Clock_curmap >> j) & 0x1) {
+							Clock_arr[j].objfunc();	// run!
+						}
 					}
+					Clock_pause_sleep();	// user pauses simulation (infloop until resume)
 				}
-				Clock_pause_sleep();	// user pauses simulation (infloop until resume)
 			}
 		}
+
+		now_msec = Clock_gettime_msec();
+		elapsedTime_msec = now_msec - prevTime_msec;
+		prevTime_msec = now_msec;	// next time
+
+		// sleep calculator
+
+
 		Sleep(sleep_for);
 	}
 }
@@ -173,6 +190,11 @@ void Clock_ready()
 	}
 
 	// get lowest possible clock number by dividing 10s
+	/*
+	* Clock_var_maxtickrate = 1000
+	* Clock_var_tickratemul = 1000 -> 1000000hz (1MHz)
+	* we do this to try to reduce memusage as much as possible.
+	*/
 	int tens = 10;
 	while (1) {
 		if (Clock_var_maxtickrate - (Clock_var_maxtickrate / tens) * tens == 0) {	/* Clock_var_maxtickrate % tens */
