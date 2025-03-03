@@ -139,6 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Clock.cpp" />
     <ClCompile Include="Core.cpp" />
     <ClCompile Include="CPU.cpp" />
     <ClCompile Include="main.cpp" />
@@ -147,6 +148,7 @@
     <ClCompile Include="X86Emitter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Clock.hpp" />
     <ClInclude Include="Core.hpp" />
     <ClInclude Include="CPU.hpp" />
     <ClInclude Include="main.hpp" />

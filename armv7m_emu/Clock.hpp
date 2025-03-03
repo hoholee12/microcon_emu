@@ -30,13 +30,13 @@
 
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
-extern int Clock_var_maxtickrate;
-extern int Clock_var_tickratemul;	// multiplier for maxtickrate
+extern uint32 Clock_var_maxtickrate;
+extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 
 /* target tickrate(actual tickrate while running) */
-extern int Clock_var_tick;
+extern uint32 Clock_var_tick;
 
-extern int Clock_var_wake;
+extern uint32 Clock_var_wake;
 
 enum Clock_type_enum{master, midobj, peri};
 struct Clock_struct {

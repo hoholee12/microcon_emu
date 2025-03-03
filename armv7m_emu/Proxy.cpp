@@ -23,3 +23,7 @@ HANDLE make_thread(Thread_data* mydata) {
 
 	return thread;
 }
+
+uint32 GetTicks_msec() {
+	return GetTickCount();
+}

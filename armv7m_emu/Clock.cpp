@@ -26,12 +26,31 @@
 * 
 */
 
+
+/* maxtickrate based on LCM of all objects (simulated tickrate) */
+uint32 Clock_var_maxtickrate;
+uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
+
+/* target tickrate(actual tickrate while running) */
+uint32 Clock_var_tick;
+
+uint32 Clock_var_wake;
+
+uint32 Clock_arr_map;
+uint32* Clock_schedule_arr;	// dynamically allocated
+
 void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed) 
 {
 	Clock_arr_map = 0;
 	Clock_var_wake = 1;
 	Clock_var_tick = virtual_clockspeed;	// this is only to be used to control the speed of overall simulation
 	Clock_var_maxtickrate = 0;				// virtual_clockspeed(Clock_var_tick) does not count in sim scheduling
+}
+
+static inline void Clock_pause_sleep() {
+	while (Clock_var_wake == 0) {
+		Sleep(100);	// explicit wait state is better than just ready
+	}
 }
 
 // main body for counting ticks and launching objfuncs.
@@ -41,7 +60,7 @@ void Clock_body()
 	uint32 sleep_for = one_second;	// TODO
 
 	while (1) {
-		// the nature of the os does not allow us to do hires sleep. we shall make it coarse.
+		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse.
 		for (int i = 0; i < Clock_var_maxtickrate; i++) {
 			uint32 Clock_curmap = Clock_schedule_arr[i];
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety and skip if there isnt anything to trigger.
@@ -54,12 +73,6 @@ void Clock_body()
 			}
 		}
 		Sleep(sleep_for);
-	}
-}
-
-static inline void Clock_pause_sleep() {
-	while (Clock_var_wake == 0) {
-		Sleep(100);
 	}
 }
 
