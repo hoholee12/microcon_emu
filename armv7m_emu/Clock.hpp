@@ -66,7 +66,12 @@ extern uint32* Clock_schedule_arr;	// dynamically allocated
 
 // static instead of extern, this is only to be used in Clock.
 static inline uint32 Clock_gcd(uint32 a, uint32 b) {
-	while (b != 0) { uint32 temp = b; b = a % b; a = temp; }
+	while (b != 0) {
+		// (a - (a / b) * b) -> a % b
+		uint32 temp = b;
+		b = a - (a / b) * b;
+		a = temp;
+	}
 	return a;
 }
 static inline uint32 Clock_lcm(uint32 a, uint32 b) {

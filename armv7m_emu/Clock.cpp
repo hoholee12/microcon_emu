@@ -60,6 +60,14 @@ void Clock_body()
 	const uint32 one_second = 1000;
 	uint32 sleep_for = one_second;	// TODO: sleep calculator
 
+
+	/*
+	* how to calculate sleep:
+	* 
+	* 1000hz / 1000msec = 1msec per hz
+	* 1000000hz / 1000msec = 
+	* 
+	*/
 	uint32 prevTime_msec = Clock_gettime_msec();
 	uint32 now_msec = prevTime_msec;
 	uint32 elapsedTime_msec = prevTime_msec;
@@ -138,7 +146,8 @@ void Clock_add(uint32 index, Clock_struct* clock_obj)
 
 uint32 Clock_ready_getmaxvalperobj(uint32 masterclock, uint32 startindex) {
 	uint32 idx = startindex;
-	uint32 maxval = 1;
+	uint32 maxval = 100;	// percentage
+	uint32 countermax = 100;
 	// if start from peri, start from midobj one up
 	if (Clock_arr[idx].clock_type == Clock_type_enum::peri) {
 		idx = Clock_arr[idx].linked_by;
@@ -146,6 +155,7 @@ uint32 Clock_ready_getmaxvalperobj(uint32 masterclock, uint32 startindex) {
 	// keep looping until master
 	while (Clock_arr[idx].clock_type == Clock_type_enum::midobj) {
 		maxval *= Clock_arr[idx].multiplier;
+		countermax *= 100;
 		idx = Clock_arr[idx].linked_by;
 	}
 
@@ -155,7 +165,7 @@ uint32 Clock_ready_getmaxvalperobj(uint32 masterclock, uint32 startindex) {
 		return 0;
 	}
 
-	return masterclock * maxval;
+	return masterclock * maxval / countermax;	// percentage
 }
 
 void Clock_ready()
@@ -189,24 +199,42 @@ void Clock_ready()
 		}
 	}
 
-	// get lowest possible clock number by dividing 10s
+	// get lowest possible clock number by dividing gcd
 	/*
-	* Clock_var_maxtickrate = 1000
-	* Clock_var_tickratemul = 1000 -> 1000000hz (1MHz)
-	* we do this to try to reduce memusage as much as possible.
+	* a = 1000, b = 700, c = 500 -> gcd = 100
+	* maxclock = 1000
+	* Clock_var_maxtickrate (maxclock / gcd) = 10
+	* Clock_var_tickratemul (gcd) = 100
+	* Clock_arr /= gcd
+	* we do this to try to reduce memusage & sleep calls as much as possible.
 	*/
-	int tens = 10;
-	while (1) {
-		if (Clock_var_maxtickrate - (Clock_var_maxtickrate / tens) * tens == 0) {	/* Clock_var_maxtickrate % tens */
-			Clock_var_maxtickrate /= tens;
-			Clock_var_tickratemul = tens;
-
-			tens *= 10;
-		}
-		else {
-			break;
+	uint32 gcd_result = Clock_var_maxtickrate;
+	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+		if ((Clock_arr_map >> i) & 0x1) {
+			switch (Clock_arr[i].clock_type) {
+			case Clock_type_enum::master:
+				gcd_result = Clock_gcd(gcd_result, Clock_arr[i].baseclock);
+				break;
+			case Clock_type_enum::peri:
+				gcd_result = Clock_gcd(gcd_result, Clock_tickratearr[i]);
+				break;
+			}
 		}
 	}
+	// loop again to apply to other clocks
+	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+		if ((Clock_arr_map >> i) & 0x1) {
+			switch (Clock_arr[i].clock_type) {
+			case Clock_type_enum::master:
+			case Clock_type_enum::peri:
+				Clock_tickratearr[i] /= gcd_result;
+				break;
+			}
+		}
+	}
+	Clock_var_maxtickrate /= gcd_result;
+	Clock_var_tickratemul = gcd_result;
+
 
 	// generate tape
 	/*
