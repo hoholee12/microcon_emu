@@ -80,7 +80,8 @@ void Clock_body()
 	while (1) {
 		// run + sleep = total frame
 		
-		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse.
+		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse. (but not one second coarse...)
+		// TODO: figure out how to limit the tape playback to 10th of a one second load
 		for (uint32 n = 0; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
 			for (int i = 0; i < Clock_var_maxtickrate; i++) {	// main tape roll
 				uint32 Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
