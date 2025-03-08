@@ -36,7 +36,7 @@ static const uint32 control_fps = 60;
 extern uint32 Clock_var_maxtickrate;
 extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 
-/* target tickrate(actual tickrate while running) */
+/* simple freerunning tick */
 extern uint32 Clock_var_tick;
 
 extern uint32 Clock_var_wake;
@@ -44,7 +44,7 @@ extern uint32 Clock_var_wake;
 enum Clock_type_enum{master, midobj, peri};
 struct Clock_struct {
 	uint32 linked_by; // linked by index
-	uint32 groupid;	// TODO: for optimization (reduce timer syscall)
+	uint32 groupid;	// TODO: for optimization (reduce timer syscall maybe)
 	uint32 multiplier; // only for midobj. used as percentage (1.0 -> 100, 0.25 -> 25)
 	uint32 baseclock; // only for master. 1 -> 1hz (uint32 4Ghz possible)
 	void (*objfunc)(void);	// linked object function. only for peri(including cpu).
@@ -84,8 +84,7 @@ static inline uint32 Clock_lcm(uint32 a, uint32 b) {
 extern void Clock_pause();
 extern void Clock_resume();
 
-// clockspeed: real base (replaced by master), virtual_clockspeed: simulated
-extern void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed);
+extern void Clock_init();
 
 // main body for counting ticks
 extern void Clock_body_main();
@@ -93,7 +92,8 @@ extern void Clock_body_main();
 extern void Clock_body_sub(uint32 _cyclecountdown, uint32 *tn, uint32 *ti);
 
 // function to insert clock objects in. master must always be index 0!!
-extern void Clock_add(uint32 index, Clock_struct clock_obj);
+// obj is copied so you no need to worry about obj getting dereferenced.
+extern void Clock_add(uint32 index, Clock_struct* clock_obj);
 
 // calculate LCM and generate clock schedule arr for run
 extern void Clock_ready();

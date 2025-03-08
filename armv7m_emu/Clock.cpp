@@ -31,8 +31,8 @@
 uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 
-/* target tickrate(actual tickrate while running) */
-uint32 Clock_var_tick;
+/* simple freerunning tick */
+uint32 Clock_var_tick = 0;
 
 uint32 Clock_var_wake;
 
@@ -40,12 +40,11 @@ uint32 Clock_arr_map;
 uint32* Clock_schedule_arr;	// dynamically allocated
 struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
-void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed) 
+void Clock_init() 
 {
 	Clock_arr_map = 0;
 	Clock_var_wake = 1;
-	Clock_var_tick = virtual_clockspeed;	// this is only to be used to control the speed of overall simulation
-	Clock_var_maxtickrate = 0;				// virtual_clockspeed(Clock_var_tick) does not count in sim scheduling
+	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
 }
 
@@ -185,7 +184,6 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 				*ti = i;
 				return;	// get out !!!
 			}
-			cyclecountdown -= 1;
 			Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
 				// iterate and launch procedures
@@ -195,6 +193,8 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 					}
 				}
 			}
+			Clock_var_tick += 1;	// freerunning tick
+			cyclecountdown -= 1;	// countdown tick
 		}
 	}
 }
@@ -208,6 +208,7 @@ void Clock_resume() {
 }
 
 // function to insert clock objects in. master must always be index 0!!
+// obj is copied so you no need to worry about obj getting dereferenced.
 void Clock_add(uint32 index, Clock_struct* clock_obj) 
 {
 	// sanity check
@@ -237,7 +238,8 @@ void Clock_add(uint32 index, Clock_struct* clock_obj)
 /* Clock schedule arr
 *
 * malloc memory
-* one long cylinder with bulging pins that plays instruments when strike
+* tape is allocated and is played back in a loop
+* clock-powered musical box basically
 *
 * uint32 (32bits) -> 32 functions possible at one tick
 */
@@ -356,7 +358,7 @@ void Clock_ready()
 				usec_per_tick = Clock_var_maxtickrate / Clock_tickratearr[i];
 				for (uint32 j = 0; j < Clock_var_maxtickrate; j++) {
 					if (j - (j / usec_per_tick) * usec_per_tick == 0) {	/* j % usec_per_tick */
-						Clock_schedule_arr[j] |= (0x1 >> i);	// mark
+						Clock_schedule_arr[j] |= (0x1 << i);	// mark
 					}
 				}
 				break;

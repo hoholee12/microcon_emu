@@ -3,10 +3,24 @@
 int Core_var_status;
 int Core_var_Memory_init;
 
+void test_pericpu() {
+	printf("pericpu executing... the time is: %llu\n", Clock_var_tick);
+}
+void test_peri0() {
+	printf("mul0 -> peri0 executing... the time is: %llu\n", Clock_var_tick);
+}
+void test_peri1() {
+	printf("mul0 -> peri1 executing... the time is: %llu\n", Clock_var_tick);
+}
+void test_peri2() {
+	printf("mul1 -> peri2 executing... the time is: %llu\n", Clock_var_tick);
+}
+
+
 void Core_mainThread() {
+	// FOR NOW: we shall do test running here
 
-
-
+	Clock_body_main();
 
 
 	while (1) {
@@ -60,9 +74,55 @@ void Core_mainThread() {
 }
 
 void Core_start(Thread_data* mydata) {
+
+	// FOR NOW: we shall do test related init in here
+
+	Clock_init();
 	
+	// do scheduling first
+	struct Clock_struct clockgen;	// for master clock
+	struct Clock_struct clockpericpu;	// cpu
+	struct Clock_struct clockmul0;	// for peri0 peri1
+	struct Clock_struct clockmul1;	// for per2
+	struct Clock_struct clockperi0;		// peri0
+	struct Clock_struct clockperi1;		// peri1
+	struct Clock_struct clockperi2;		// peri2
+
+	clockgen.baseclock = 1000;	// 1khz
+	clockgen.clock_type = Clock_type_enum::master;
+	Clock_add(0, &clockgen);
+
+	clockpericpu.linked_by = 0;
+	clockpericpu.clock_type = Clock_type_enum::peri;
+	clockpericpu.objfunc = test_pericpu;
+	Clock_add(1, &clockpericpu);
+
+	clockmul0.linked_by = 0;
+	clockmul0.clock_type = Clock_type_enum::midobj;
+	clockmul0.multiplier = 70;	// 0.7
+	Clock_add(2, &clockmul0);
 	
-	
+	clockperi0.linked_by = 2;
+	clockperi0.clock_type = Clock_type_enum::peri;
+	clockperi0.objfunc = test_peri0;
+	Clock_add(3, &clockperi0);
+
+	clockperi1.linked_by = 2;
+	clockperi1.clock_type = Clock_type_enum::peri;
+	clockperi1.objfunc = test_peri1;
+	Clock_add(4, &clockperi1);
+
+	clockmul1.linked_by = 0;
+	clockmul1.clock_type = Clock_type_enum::midobj;
+	clockmul1.multiplier = 30;	// 0.3
+	Clock_add(5, &clockmul1);
+
+	clockperi2.linked_by = 5;
+	clockperi2.clock_type = Clock_type_enum::peri;
+	clockperi2.objfunc = test_peri2;
+	Clock_add(6, &clockperi2);
+
+	Clock_ready();
 	
 	mydata->func = Core_mainThread;
 	mydata->param1 = 0;
