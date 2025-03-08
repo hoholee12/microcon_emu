@@ -29,6 +29,9 @@
 */
 
 
+const uint32 control_syncsize = 100;
+const uint32 control_fps = 60;
+
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 extern uint32 Clock_var_maxtickrate;
 extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
@@ -84,8 +87,11 @@ extern void Clock_resume();
 // clockspeed: real base (replaced by master), virtual_clockspeed: simulated
 extern void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed);
 
-// main body for counting ticks and launching objfuncs.
-extern void Clock_body();
+// main body for counting ticks
+extern void Clock_body_main();
+// sub body for launching objfuncs
+extern void Clock_body_sub(uint32 _cyclecountdown, uint32 *tn, uint32 *ti);
+
 // function to insert clock objects in. master must always be index 0!!
 extern void Clock_add(uint32 index, Clock_struct clock_obj);
 

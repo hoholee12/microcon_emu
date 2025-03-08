@@ -50,17 +50,17 @@ void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed)
 
 static inline void Clock_pause_sleep() {
 	while (Clock_var_wake == 0) {
-		Sleep(100);	// explicit wait state is better than just ready
+		Sleep(100);	// explicit wait state is better than just yielding
 	}
 }
 
-// main body for counting ticks and launching objfuncs.
-void Clock_body()
+// main body for counting ticks
+void Clock_body_main()
 {
 	const uint32 one_second = 1000;
-	uint32 syncsize = 100; //100ms as base sync (sleep_for +1 if less than, sleep_for -1 if more than)
+	uint32 syncsize = control_syncsize; //100ms as base sync (sleep_for +1 if less than, sleep_for -1 if more than)
 	uint32 syncwhen = one_second / syncsize;	// 1sec / syncsize = 10 times every second
-	uint32 sleep_for = one_second / 60;	// 16ms
+	uint32 sleep_for = one_second / control_fps;	// 16ms
 
 
 	/*
@@ -75,32 +75,80 @@ void Clock_body()
 	uint32 now_msec = prevTime_msec;
 	uint32 elapsedTime_msec = prevTime_msec;
 
+	// for the simclock
+	uint32 totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
+	uint32 simclockcurrent = totalsimclock;
+	uint32 simclockloopcount = control_fps;
+	uint32 simclocktosend = 0;
+	uint32 bn = 0;
+	uint32 bi = 0;
+
 	// body loop
 	uint32 loopcount = 0;
 	while (1) {
 		// run + sleep = total frame
 		
 		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse. (but not one second coarse...)
-		// TODO: figure out how to limit the tape playback to 10th of a one second load
-		for (uint32 n = 0; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
-			for (int i = 0; i < Clock_var_maxtickrate; i++) {	// main tape roll
-				uint32 Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
-				if (Clock_curmap != 0) {	// just check the bitmap in its entirety and skip if there isnt anything to trigger.
-					for (int j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
-						if ((Clock_curmap >> j) & 0x1) {
-							Clock_arr[j].objfunc();	// run!
-						}
-					}
-					Clock_pause_sleep();	// user pauses simulation (infloop until resume)
-				}
-			}
-		}
 
-		// sleep first
+		/*
+		* Clock_var_tickratemul * Clock_var_maxtickrate = 1 second tape
+		* (whatever value Clock_var_tickratemul or Clock_var_maxtickrate holds, it amounts to exact 1 second)
+		* 
+		* if Clock_var_tickratemul = 1 -> 1 sleep per 1 second
+		* if Clock_var_tickratemul = 6 -> 6 sleeps per 1 second
+		* -> it is based on 1 second. 
+		* 
+		* 1 second = 60hz pause time for control -> 60 sleeps per 1 second required.
+		* control needs to tell the scheduler to pause 60 times per 1 second.
+		* -> break down the tape 60 times and tell control every break (if tape is 1000hz)
+		* -> break down the tape 60 times and tell control every break (if tape is 1khz)
+		*    (if tape is 100khz, Clock_var_maxtickrate would stay the same while Clock_var_tickratemul would probably be 100x higher) 
+		* 
+		* for simplicity:
+		* 0. calculate cycles to loop before getting interrupted to control
+		* 1. new function for 1 second tape. this function tracks cycles.
+		* 2. when cycle is reached, just save the current value n, i, j and return immediately.
+		* 3. when control is done, we can resume where we left off with the saved value.
+		* 
+		* 4. user pause/resume is to be recognized in control.
+		* 5. 
+		*/
+
+		/* 1000hz 6hz -> 166hz/167hz per frame:
+		* 
+		* 1st loop - 1000 / 6 -> 166
+		* 2nd loop - 834 / 5 -> 166
+		* 3rd loop - 668 / 4 -> 167
+		* 4th loop - 501 / 3 -> 167
+		* 5th loop - 334 / 2 -> 167
+		* final loop - 167 / 1 -> 167
+		* 
+		*/
+
+		// calculate simclock
+		if (simclockloopcount == 0) {
+			// reset if loopcount hits zero
+			simclockloopcount = control_fps;
+			simclockcurrent = totalsimclock;
+			// i am 100 sure these will be at their ultimate max value when loopcount hits zero
+			bn = 0;
+			bi = 0;
+		}
+		simclocktosend = simclockcurrent / simclockloopcount;
+		simclockcurrent -= simclocktosend;
+		simclockloopcount -= 1;
+		Clock_body_sub(simclocktosend, &bn, &bi);
+
+
+		Clock_pause_sleep();	// user pauses simulation (infloop until resume)
+
+		// sleep for control
 		Sleep(sleep_for);
 		loopcount++;
 
-		/* clock time gets measured here */
+		/* clock time gets measured here
+		*  this does not care about actual cycles spent in sim. this is only for correcting sync in winapi timer
+		*/
 		if (loopcount == syncwhen) {
 			now_msec = Clock_gettime_msec();
 			elapsedTime_msec = now_msec - prevTime_msec;
@@ -118,6 +166,34 @@ void Clock_body()
 			}
 
 			loopcount = 0;
+		}
+	}
+}
+
+// tn = Clock_var_tickratemul state, ti = Clock_var_maxtickrate
+void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
+	uint32 cyclecountdown = _cyclecountdown;
+	uint32 Clock_curmap = 0;
+
+	for (uint32 n = *tn; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
+		for (uint32 i = *ti; i < Clock_var_maxtickrate; i++) {	// main tape roll
+			// time to give it back to control
+			if (cyclecountdown == 0) {
+				// backup state
+				*tn = n;
+				*ti = i;
+				return;	// get out !!!
+			}
+			cyclecountdown -= 1;
+			Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
+			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
+				// iterate and launch procedures
+				for (uint32 j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
+					if ((Clock_curmap >> j) & 0x1) {
+						Clock_arr[j].objfunc();	// run!
+					}
+				}
+			}
 		}
 	}
 }
