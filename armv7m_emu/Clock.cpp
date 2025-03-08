@@ -277,7 +277,7 @@ void Clock_ready()
 	memset(Clock_tickratearr, 0, CLOCK_MAX_SCHEDULE_SIZE);
 
 	// calculate LCM
-	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
 			case Clock_type_enum::master:
@@ -307,7 +307,7 @@ void Clock_ready()
 	* we do this to try to reduce memusage & sleep calls as much as possible.
 	*/
 	uint32 gcd_result = Clock_var_maxtickrate;
-	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
 			case Clock_type_enum::master:
@@ -320,7 +320,7 @@ void Clock_ready()
 		}
 	}
 	// loop again to apply to other clocks
-	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
 			case Clock_type_enum::master:
@@ -348,13 +348,13 @@ void Clock_ready()
 	*
 	*/
 
-	for (int i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
 			case Clock_type_enum::peri:	//including cpu
 				// get peri 1000 / 500 = 2
 				usec_per_tick = Clock_var_maxtickrate / Clock_tickratearr[i];
-				for (int j = 0; j < Clock_var_maxtickrate; j++) {
+				for (uint32 j = 0; j < Clock_var_maxtickrate; j++) {
 					if (j - (j / usec_per_tick) * usec_per_tick == 0) {	/* j % usec_per_tick */
 						Clock_schedule_arr[j] |= (0x1 >> i);	// mark
 					}

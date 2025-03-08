@@ -59,7 +59,7 @@ void Memory_init() {
 }
 
 Memory_map_elem* Memory_getMap(uint32 addr) {
-	uint32 validMapFound = 0;
+	
 	if (Memory_var_arrlen > 0) {
 		Memory_map_elem* item = &Memory_var_arr[0];
 		do {
@@ -67,7 +67,6 @@ Memory_map_elem* Memory_getMap(uint32 addr) {
 			uint32 bound = item->base + item->size;	// exclusive
 			
 			if (addr >= base && addr <= bound) {
-				validMapFound = 1;
 				return item;
 			}
 		
@@ -80,10 +79,7 @@ Memory_map_elem* Memory_getMap(uint32 addr) {
 		return NULL;
 	}
 
-	if (validMapFound == 0) {
-		return NULL;
-	}
-
+	return NULL;	// no valid map exists
 }
 
 // memory read
@@ -121,6 +117,8 @@ void* Memory_read(uint32 addr, Memory_enum_size sizetype) {
 		return &thismap->data[translated_addr];*/
 	}
 
+	// what happen?
+	return NULL;
 }
 
 // memory write
