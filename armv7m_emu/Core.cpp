@@ -4,6 +4,11 @@ int Core_var_status;
 int Core_var_Memory_init;
 
 void Core_mainThread() {
+
+
+
+
+
 	while (1) {
 		Sleep(100);
 		if (Core_var_status != 1) {
@@ -55,6 +60,10 @@ void Core_mainThread() {
 }
 
 void Core_start(Thread_data* mydata) {
+	
+	
+	
+	
 	mydata->func = Core_mainThread;
 	mydata->param1 = 0;
 	mydata->param2 = 0;

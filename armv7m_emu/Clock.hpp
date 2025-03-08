@@ -29,8 +29,8 @@
 */
 
 
-const uint32 control_syncsize = 100;
-const uint32 control_fps = 60;
+static const uint32 control_syncsize = 100;
+static const uint32 control_fps = 60;
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 extern uint32 Clock_var_maxtickrate;
@@ -54,7 +54,7 @@ struct Clock_struct {
 #define CLOCK_MAX_SCHEDULE_SIZE (sizeof(uint32) * 8)
 
 extern uint32 Clock_arr_map;
-struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
+extern struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 
 /* Clock schedule arr 

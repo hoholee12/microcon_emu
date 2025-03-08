@@ -38,6 +38,7 @@ uint32 Clock_var_wake;
 
 uint32 Clock_arr_map;
 uint32* Clock_schedule_arr;	// dynamically allocated
+struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 void Clock_init(uint32 clockspeed, uint32 virtual_clockspeed) 
 {

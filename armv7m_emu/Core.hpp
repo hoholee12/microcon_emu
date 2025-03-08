@@ -1,6 +1,7 @@
 #pragma once
 #include "Proxy.hpp"
 #include "Memory.hpp"
+#include "Clock.hpp"
 
 // type defines
 
