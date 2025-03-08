@@ -3,17 +3,35 @@
 int Core_var_status;
 int Core_var_Memory_init;
 
+
+int test_pericpu_count = 0;
+int test_peri0_count = 0;
+int test_peri1_count = 0;
+int test_peri2_count = 0;
+int test_peri3_count = 0;
+
 void test_pericpu() {
-	printf("pericpu executing... the time is: %llu\n", Clock_var_tick);
+	// printf("pericpu executing... the time is: %d\n", Clock_currenttime());
+	test_pericpu_count += 1;
 }
 void test_peri0() {
-	printf("mul0 -> peri0 executing... the time is: %llu\n", Clock_var_tick);
+	// printf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
+	test_peri0_count += 1;
 }
 void test_peri1() {
-	printf("mul0 -> peri1 executing... the time is: %llu\n", Clock_var_tick);
+	// printf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
+	test_peri1_count += 1;
 }
 void test_peri2() {
-	printf("mul1 -> peri2 executing... the time is: %llu\n", Clock_var_tick);
+	// printf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
+	test_peri2_count += 1;
+}
+void test_peri3() {
+	// printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
+	test_peri3_count += 1;
+
+	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
+		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
 }
 
 
@@ -87,8 +105,10 @@ void Core_start(Thread_data* mydata) {
 	struct Clock_struct clockperi0;		// peri0
 	struct Clock_struct clockperi1;		// peri1
 	struct Clock_struct clockperi2;		// peri2
+	struct Clock_struct clockmul2;	// to mul0
+	struct Clock_struct clockperi3;	// peri3
 
-	clockgen.baseclock = 1000;	// 1khz
+	clockgen.baseclock = 100;	// 10hz
 	clockgen.clock_type = Clock_type_enum::master;
 	Clock_add(0, &clockgen);
 
@@ -121,6 +141,16 @@ void Core_start(Thread_data* mydata) {
 	clockperi2.clock_type = Clock_type_enum::peri;
 	clockperi2.objfunc = test_peri2;
 	Clock_add(6, &clockperi2);
+
+	clockmul2.linked_by = 2;
+	clockmul2.clock_type = Clock_type_enum::midobj;
+	clockmul2.multiplier = 70;  // 0.7 * 0.7 = 0.49999...0.5
+	Clock_add(7, &clockmul2);
+
+	clockperi3.linked_by = 7;
+	clockperi3.clock_type = Clock_type_enum::peri;
+	clockperi3.objfunc = test_peri3;
+	Clock_add(8, &clockperi3);
 
 	Clock_ready();
 	

@@ -30,6 +30,7 @@
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
+uint32 Clock_var_totalsimclock;	// multiply of these two
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
@@ -46,6 +47,7 @@ void Clock_init()
 	Clock_var_wake = 1;
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
+	Clock_var_totalsimclock = 0;
 }
 
 static inline void Clock_pause_sleep() {
@@ -76,8 +78,8 @@ void Clock_body_main()
 	uint32 elapsedTime_msec = prevTime_msec;
 
 	// for the simclock
-	uint32 totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
-	uint32 simclockcurrent = totalsimclock;
+	Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
+	uint32 simclockcurrent = Clock_var_totalsimclock;
 	uint32 simclockloopcount = control_fps;
 	uint32 simclocktosend = 0;
 	uint32 bn = 0;
@@ -129,7 +131,7 @@ void Clock_body_main()
 		if (simclockloopcount == 0) {
 			// reset if loopcount hits zero
 			simclockloopcount = control_fps;
-			simclockcurrent = totalsimclock;
+			simclockcurrent = Clock_var_totalsimclock;
 			// i am 100 sure these will be at their ultimate max value when loopcount hits zero
 			bn = 0;
 			bi = 0;
@@ -367,4 +369,16 @@ void Clock_ready()
 			}
 		}
 	}
+}
+
+uint32 Clock_currenttime() {
+	/* return in ms
+	* a second 1000
+	* Clock_var_tick = internal tick 123456
+	* Clock_var_maxtickrate * Clock_var_tickratemul = total of internal tick per second 21000
+	* 123456000 / 21000 = 5878 ms
+	* 
+	*/
+	return Clock_var_tick * 1000 / Clock_var_totalsimclock;
+
 }

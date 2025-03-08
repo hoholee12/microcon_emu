@@ -35,6 +35,7 @@ static const uint32 control_fps = 60;
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 extern uint32 Clock_var_maxtickrate;
 extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
+extern uint32 Clock_totalsimclock;	// multiply of these two
 
 /* simple freerunning tick */
 extern uint32 Clock_var_tick;
@@ -97,3 +98,6 @@ extern void Clock_add(uint32 index, Clock_struct* clock_obj);
 
 // calculate LCM and generate clock schedule arr for run
 extern void Clock_ready();
+
+// telemetry
+extern uint32 Clock_currenttime();

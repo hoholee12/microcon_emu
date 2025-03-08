@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
 
 
 	if (thread) {
+		/*
 		while (1) {
 			Sleep(1000);
 			Core_pause();
@@ -40,6 +41,7 @@ int main(int argc, char** argv) {
 			Sleep(500);
 			Core_resume();
 		}
+		*/
 
 		//pthread_join equivalent
 		WaitForSingleObject(thread, INFINITE);
