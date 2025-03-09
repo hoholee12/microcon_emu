@@ -116,7 +116,7 @@ void Core_start(Thread_data* mydata) {
 	struct Clock_struct testmul;
 	struct Clock_struct testperi;
 
-	clockgen.baseclock = 100;	// 10hz
+	clockgen.baseclock = 1000;	// 10hz
 	clockgen.clock_type = Clock_type_enum::master;
 	Clock_add(0, &clockgen);
 

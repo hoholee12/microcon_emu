@@ -143,6 +143,7 @@ void Clock_body_main()
 
 		// sleep for control
 		Sleep(sleep_for);
+		Clock_var_sleepfor = sleep_for;	// update telemetry
 
 		/* clock time gets measured here
 		* this does not care about actual cycles spent in sim. this is only for correcting sync in winapi timer
@@ -175,7 +176,6 @@ void Clock_body_main()
 			else {
 				sleep_for += 1;
 			}
-			Clock_var_sleepfor = long_term_drift;	// update telemetry
 
 			// printf("drift: %d, sleep_for: %d\n", long_term_drift, sleep_for);
 

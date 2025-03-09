@@ -30,8 +30,9 @@
 
 
 static const uint32 control_fps = 60;
-static const uint32 control_syncinterval = 12;	// 12 frames (~0.2s)
+static const uint32 control_sync = 5;
 static const uint32 control_longsync = 5;
+static const uint32 control_syncinterval = control_fps / control_sync;	// 12 frames (~0.2s)
 static const uint32 control_syncinterval_long = control_fps / control_syncinterval * control_longsync; // interval of 25(5s) to calc sync
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
