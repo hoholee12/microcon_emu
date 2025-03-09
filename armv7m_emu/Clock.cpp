@@ -32,6 +32,9 @@ uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 uint32 Clock_var_totalsimclock;	// multiply of these two
 int Clock_var_sleepfor;
+uint32 Clock_var_vectorarrmode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
+
+uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
@@ -49,6 +52,9 @@ void Clock_init()
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
 	Clock_var_totalsimclock = 0;
+
+	Clock_var_vectorarrmode = 0;
+	Clock_var_poweron = 0;
 }
 
 static inline void Clock_pause_sleep() {
@@ -75,6 +81,11 @@ void Clock_body_main()
 	uint32 bi = 0;
 
 	while (1) {
+
+		// power: infloop, the regen should be quick.
+		// this is to happen when clockspeed changed or peripheral added mid-run.
+		while (Clock_var_poweron == 0) {}
+
 		// run + sleep = total frame
 		
 		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse. (but not one second coarse...)
@@ -367,7 +378,6 @@ void Clock_ready()
 	*     loop schedule arr
 	*
 	*/
-
 	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
@@ -385,6 +395,42 @@ void Clock_ready()
 			}
 		}
 	}
+
+	/*
+	* check if the bumps are too far away from each other
+	* if they are over 2 slots wide, tape playback is kind of inefficient
+	* if so, we convert to vector array instead
+	*/
+	// Clock_var_vectorarrmode is to be switched here.
+	uint32 intervalcontinue = 0;
+	for (uint32 i = 0; i < Clock_var_maxtickrate; i++) {
+		if (Clock_schedule_arr[i] != 0) {
+			// do nothing
+		}
+		// was counting one slot.. this is second time
+		else if (intervalcontinue == 1) {
+			Clock_var_vectorarrmode = 1;
+			break;
+		}
+		// empty space, start counting space
+		else {
+			intervalcontinue += 1;
+		}
+	}
+
+
+	/*
+	* create a new vectorarr
+	*/
+	if (intervalcontinue == 1) {
+	
+	
+	
+	
+	}
+
+
+	Clock_var_poweron = 1;	// ready to run.
 }
 
 uint32 Clock_currenttime() {

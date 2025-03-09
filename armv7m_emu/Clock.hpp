@@ -30,8 +30,9 @@
 
 
 static const uint32 control_fps = 60;
-static const uint32 control_syncinterval = 12;	// 12 frames (~0.2s)
+static const uint32 control_sync = 5;
 static const uint32 control_longsync = 5;
+static const uint32 control_syncinterval = control_fps / control_sync;	// 12 frames (~0.2s)
 static const uint32 control_syncinterval_long = control_fps / control_syncinterval * control_longsync; // interval of 25(5s) to calc sync
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
@@ -39,6 +40,9 @@ extern uint32 Clock_var_maxtickrate;
 extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 extern uint32 Clock_totalsimclock;	// multiply of these two
 extern int Clock_var_sleepfor;
+extern uint32 Clock_var_vectorarrmode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
+
+extern uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 
 /* simple freerunning tick */
 extern uint32 Clock_var_tick;
