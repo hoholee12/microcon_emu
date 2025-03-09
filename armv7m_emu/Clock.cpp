@@ -31,6 +31,7 @@
 uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 uint32 Clock_var_totalsimclock;	// multiply of these two
+int Clock_var_sleepfor;
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
@@ -56,26 +57,14 @@ static inline void Clock_pause_sleep() {
 	}
 }
 
-// main body for counting ticks
+// main body (synchronized by 60fps)
 void Clock_body_main()
 {
-	const uint32 one_second = 1000;
-	uint32 syncsize = control_syncsize; //100ms as base sync (sleep_for +1 if less than, sleep_for -1 if more than)
-	uint32 syncwhen = one_second / syncsize;	// 1sec / syncsize = 10 times every second
-	uint32 sleep_for = one_second / control_fps;	// 16ms
-
-
-	/*
-	* how to calculate sleep:
-	* base is 60hz (interface updates 60 times per sec) -> 16ms per sleep (we can just adjust this for base accuracy)
-	* 
-	* 1000hz (cpu) / 60hz = 16 cycles per frame
-	* 
-	* 16 + 16 + 16 + 16 + 16 + 16 + 17 + 17 + 17 + 17 + 17 + 17 = 200
-	*/
-	uint32 prevTime_msec = Clock_gettime_msec();
-	uint32 now_msec = prevTime_msec;
-	uint32 elapsedTime_msec = prevTime_msec;
+	const int one_second = 1000;
+	uint32 frame_count = 0;
+	uint32 short_term_index = 0;
+	uint32 short_term_timestamps[control_syncinterval_long] = { 0 };
+	uint32 sleep_for = one_second / control_fps;	// lets start with 16ms
 
 	// for the simclock
 	Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
@@ -85,12 +74,20 @@ void Clock_body_main()
 	uint32 bn = 0;
 	uint32 bi = 0;
 
-	// body loop
-	uint32 loopcount = 0;
 	while (1) {
 		// run + sleep = total frame
 		
 		// the nature of the app environment does not allow us to do Hi-Res sleep. we shall make it coarse. (but not one second coarse...)
+
+
+		/* TODO:
+		* 1. if masterclock * 2 < tapesize: (tape too big for perf)
+		*	switch to vectorarr<nextinterval:map>
+		* 2. allow adding of new clock while running:
+		*	clock_init > clock_add > clock_ready procedure is to be used.
+		*	clock_ready will remember previous gen state and scale to the newly generated tape size accordingly
+		*/
+
 
 		/*
 		* Clock_var_tickratemul * Clock_var_maxtickrate = 1 second tape
@@ -146,28 +143,47 @@ void Clock_body_main()
 
 		// sleep for control
 		Sleep(sleep_for);
-		loopcount++;
 
 		/* clock time gets measured here
-		*  this does not care about actual cycles spent in sim. this is only for correcting sync in winapi timer
+		* this does not care about actual cycles spent in sim. this is only for correcting sync in winapi timer
+		* 
+		* long-term is accurate. short-term drifts like crazy.
+		* we use 0.2 second intervals to capture time.
+		* we use 1 second intervals to calculate drift. (no influential short term drift)
+		* 
 		*/
-		if (loopcount == syncwhen) {
-			now_msec = Clock_gettime_msec();
-			elapsedTime_msec = now_msec - prevTime_msec;
-			prevTime_msec = now_msec;	// next time
+		frame_count += 1;
+
+		if (frame_count == control_syncinterval) {
+			short_term_timestamps[short_term_index] = Clock_gettime_msec();
+			short_term_index += 1;
+			frame_count = 0;
+		}
+
+		if (short_term_index == control_syncinterval_long) {
+			int actual_elapsed = short_term_timestamps[control_syncinterval_long - 1] -
+				short_term_timestamps[0];
+
+			int long_term_drift = actual_elapsed - (one_second * control_longsync);	// idk why we need control_longsync here
 
 			// sync
-			if (elapsedTime_msec > syncsize) {
-				sleep_for -= 1;
-				// more adjustment
-				syncsize -= elapsedTime_msec - syncsize;
+			if (long_term_drift > 0) {
+				if (sleep_for > 1) {	// if this becomes zero, its basically yield()
+					sleep_for -= 1;
+				}
 			}
 			else {
 				sleep_for += 1;
-				syncsize += syncsize - elapsedTime_msec;
 			}
+			Clock_var_sleepfor = long_term_drift;	// update telemetry
 
-			loopcount = 0;
+			// printf("drift: %d, sleep_for: %d\n", long_term_drift, sleep_for);
+
+			// shift timestamps left to make room for the next (not big enough to cause perf issue)
+			for (int i = 1; i < control_syncinterval_long; i++) {
+				short_term_timestamps[i - 1] = short_term_timestamps[i];
+			}
+			short_term_index -= 1;
 		}
 	}
 }

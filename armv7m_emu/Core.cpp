@@ -9,6 +9,7 @@ int test_peri0_count = 0;
 int test_peri1_count = 0;
 int test_peri2_count = 0;
 int test_peri3_count = 0;
+int test_peri4_count = 0;
 
 void test_pericpu() {
 	// printf("pericpu executing... the time is: %d\n", Clock_currenttime());
@@ -30,8 +31,13 @@ void test_peri3() {
 	// printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
 	test_peri3_count += 1;
 
-	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
-		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
+	//printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
+	//	test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
+}
+
+void test_peri_print() {
+	test_peri4_count += 1;
+	printf("%d seconds passed. slept: %d\n", test_peri4_count, Clock_var_sleepfor);
 }
 
 
@@ -107,6 +113,8 @@ void Core_start(Thread_data* mydata) {
 	struct Clock_struct clockperi2;		// peri2
 	struct Clock_struct clockmul2;	// to mul0
 	struct Clock_struct clockperi3;	// peri3
+	struct Clock_struct testmul;
+	struct Clock_struct testperi;
 
 	clockgen.baseclock = 100;	// 10hz
 	clockgen.clock_type = Clock_type_enum::master;
@@ -151,6 +159,16 @@ void Core_start(Thread_data* mydata) {
 	clockperi3.clock_type = Clock_type_enum::peri;
 	clockperi3.objfunc = test_peri3;
 	Clock_add(8, &clockperi3);
+
+	testmul.linked_by = 0;
+	testmul.clock_type = Clock_type_enum::midobj;
+	testmul.multiplier = 1;	// 0.01 -> every 1 second
+	Clock_add(9, &testmul);
+
+	testperi.linked_by = 9;
+	testperi.clock_type = Clock_type_enum::peri;
+	testperi.objfunc = test_peri_print;
+	Clock_add(10, &testperi);
 
 	Clock_ready();
 	
