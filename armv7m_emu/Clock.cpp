@@ -35,6 +35,7 @@ int Clock_var_sleepfor;
 uint32 Clock_var_vectorarrmode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
 
 uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
+uint32 Clock_var_poweron_interruptable;
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
@@ -55,6 +56,7 @@ void Clock_init()
 
 	Clock_var_vectorarrmode = 0;
 	Clock_var_poweron = 0;
+	while (Clock_var_poweron_interruptable == 1) {}	// wait until scheduler finishes
 }
 
 static inline void Clock_pause_sleep() {
@@ -163,6 +165,7 @@ void Clock_body_main()
 		* we use 0.2 second intervals to capture time.
 		* we use 1 second intervals to calculate drift. (no influential short term drift)
 		* 
+		* TODO: this is not good enough. we need a more accurate timer
 		*/
 		frame_count += 1;
 
@@ -204,6 +207,8 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 	uint32 cyclecountdown = _cyclecountdown;
 	uint32 Clock_curmap = 0;
 
+	Clock_var_poweron_interruptable = 0;
+
 	for (uint32 n = *tn; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
 		for (uint32 i = *ti; i < Clock_var_maxtickrate; i++) {	// main tape roll
 			// time to give it back to control
@@ -211,6 +216,7 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 				// backup state
 				*tn = n;
 				*ti = i;
+				Clock_var_poweron_interruptable = 1;
 				return;	// get out !!!
 			}
 			Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
@@ -226,6 +232,8 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 			cyclecountdown -= 1;	// countdown tick
 		}
 	}
+
+	Clock_var_poweron_interruptable = 1;
 }
 
 void Clock_pause() {
