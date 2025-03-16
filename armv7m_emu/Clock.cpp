@@ -32,7 +32,7 @@ uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 uint32 Clock_var_totalsimclock;	// multiply of these two
 int Clock_var_sleepfor;
-uint32 Clock_var_vectorarrmode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
+uint32 Clock_var_vectormode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
 
 uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 uint32 Clock_var_poweron_interruptable;
@@ -43,20 +43,41 @@ uint32 Clock_var_tick = 0;
 uint32 Clock_var_wake;
 
 uint32 Clock_arr_map;
-uint32* Clock_schedule_arr;	// dynamically allocated
+
+/* Clock schedule vector
+*
+* malloc memory
+* one long cylinder that plays instruments with its pins
+*
+* uint32 (32bits) -> 32 functions possible at one tick
+*/
+uint32* Clock_schedule_vect;	// dynamically allocated
+uint32* Clock_schedule_linkvect;	// used when vectormode enabled
+uint32 Clock_schedule_vect_alloc;	// 1 when vect, 3 when vect + linkvect is allocated
+
 struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 void Clock_init() 
 {
+	while (Clock_var_poweron_interruptable == 1) {}	// wait until scheduler finishes
+
+	// deallocate previous entry
+	if ((Clock_schedule_vect_alloc & 0x1) != 0x0) {
+		free(Clock_schedule_vect);
+	}
+	if ((Clock_schedule_vect_alloc & 0x2) != 0x0) {
+		free(Clock_schedule_linkvect);
+	}
+
+
 	Clock_arr_map = 0;
 	Clock_var_wake = 1;
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
 	Clock_var_totalsimclock = 0;
 
-	Clock_var_vectorarrmode = 0;
+	Clock_var_vectormode = 0;
 	Clock_var_poweron = 0;
-	while (Clock_var_poweron_interruptable == 1) {}	// wait until scheduler finishes
 }
 
 static inline void Clock_pause_sleep() {
@@ -84,7 +105,7 @@ void Clock_body_main()
 
 	while (1) {
 
-		// power: infloop, the regen should be quick.
+		// wait until clock regen finished
 		// this is to happen when clockspeed changed or peripheral added mid-run.
 		while (Clock_var_poweron == 0) {}
 
@@ -203,23 +224,35 @@ void Clock_body_main()
 }
 
 // tn = Clock_var_tickratemul state, ti = Clock_var_maxtickrate
-void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
-	uint32 cyclecountdown = _cyclecountdown;
+/*
+* cyclecountdown = cycles to simulate before handing off back to control
+* tn, ti = position in the tape playback
+* 
+* Clock_var_tick = for telemetry (no need to worry about this for now)
+* 
+**/
+void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
+	int cyclecountdown = _cyclecountdown;
 	uint32 Clock_curmap = 0;
 
 	Clock_var_poweron_interruptable = 0;
 
 	for (uint32 n = *tn; n < Clock_var_tickratemul; n++) {	// tickratemultiplier (run the tape n times before next sleep)
 		for (uint32 i = *ti; i < Clock_var_maxtickrate; i++) {	// main tape roll
-			// time to give it back to control
-			if (cyclecountdown == 0) {
+			// time to give it back to control - TODO: this is inefficient. we only need one branch in loop
+			if (cyclecountdown <= 0) {
 				// backup state
 				*tn = n;
-				*ti = i;
+				*ti = i + cyclecountdown;	// just undo cycles (is ok because nothing happens inbetween skip)
+				Clock_var_tick += cyclecountdown;	// undo Clock_var_tick
+
 				Clock_var_poweron_interruptable = 1;
 				return;	// get out !!!
 			}
-			Clock_curmap = Clock_schedule_arr[i];	// each bitmap frame
+
+
+
+			Clock_curmap = Clock_schedule_vect[i];	// each bitmap frame
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
 				// iterate and launch procedures
 				for (uint32 j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
@@ -227,9 +260,30 @@ void Clock_body_sub(uint32 _cyclecountdown, uint32* tn, uint32* ti) {
 						Clock_arr[j].objfunc();	// run!
 					}
 				}
+
+
+				// fast skip to the next bump in the tape
+				if (Clock_var_vectormode == 1) {
+
+					// if end of tape, get to the next interation
+					if (Clock_schedule_linkvect[i] == 0) {
+						cyclecountdown -= (Clock_var_maxtickrate + 1 - i);
+						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);
+						break;	// i is reset
+					}
+
+					// keep skipping
+					Clock_var_tick += (Clock_schedule_linkvect[i] - i - 1);
+					cyclecountdown -= (Clock_schedule_linkvect[i] - i - 1);
+					i = Clock_schedule_linkvect[i] - 1;	// -1 because i++ is applied after this.
+				}
 			}
+
+
+			// count
 			Clock_var_tick += 1;	// freerunning tick
 			cyclecountdown -= 1;	// countdown tick
+
 		}
 	}
 
@@ -378,7 +432,8 @@ void Clock_ready()
 	* TODO: we might need extra tapes if there are more than 32 peripherals to manage.
 	*/
 
-	Clock_schedule_arr = (uint32*)calloc(Clock_var_maxtickrate, sizeof(uint32));
+	Clock_schedule_vect = (uint32*)calloc(Clock_var_maxtickrate, sizeof(uint32));
+	Clock_schedule_vect_alloc |= 0x1;
 
 	// hammer the pins in
 	/*
@@ -394,7 +449,7 @@ void Clock_ready()
 				usec_per_tick = Clock_var_maxtickrate / Clock_tickratearr[i];
 				for (uint32 j = 0; j < Clock_var_maxtickrate; j++) {
 					if (j - (j / usec_per_tick) * usec_per_tick == 0) {	/* j % usec_per_tick */
-						Clock_schedule_arr[j] |= (0x1 << i);	// mark
+						Clock_schedule_vect[j] |= (0x1 << i);	// mark
 					}
 				}
 				break;
@@ -406,37 +461,45 @@ void Clock_ready()
 
 	/*
 	* check if the bumps are too far away from each other
-	* if they are over 2 slots wide, tape playback is kind of inefficient
-	* if so, we convert to vector array instead
+	* if they are over 1 slot wide, tape playback is kind of inefficient
+	* if so, we create an additional link vector for skip
 	*/
-	// Clock_var_vectorarrmode is to be switched here.
+	// Clock_var_vectormode is to be switched here.
 	uint32 intervalcontinue = 0;
 	for (uint32 i = 0; i < Clock_var_maxtickrate; i++) {
-		if (Clock_schedule_arr[i] != 0) {
+		if (Clock_schedule_vect[i] != 0) {
 			// do nothing
-		}
-		// was counting one slot.. this is second time
-		else if (intervalcontinue == 1) {
-			Clock_var_vectorarrmode = 1;
-			break;
 		}
 		// empty space, start counting space
 		else {
 			intervalcontinue += 1;
 		}
+
+		if (intervalcontinue >= 2) {
+			Clock_var_vectormode = 1;
+			break;
+		}
 	}
 
 
 	/*
-	* create a new vectorarr
+	* create a new linkvector
 	*/
-	if (intervalcontinue == 1) {
-	
-	
-	
-	
-	}
+	if (Clock_var_vectormode == 1) {
+		Clock_schedule_linkvect = (uint32*)calloc(Clock_var_maxtickrate, sizeof(uint32));
+		Clock_schedule_vect_alloc |= 0x2;
+		uint32 front_loc = 0;	// last index is 0 (indicator that the tape ends after this)
+		// do this in reverse
+		for (uint32 x = Clock_var_maxtickrate; x > 0; x--) {
+			uint32 i = x - 1;
+			if (Clock_schedule_vect[i] != 0) {
+				Clock_schedule_linkvect[i] = front_loc;
+				front_loc = i;
+			}
+		}
 
+		printf("linkvect generated\n");
+	}
 
 	Clock_var_poweron = 1;	// ready to run.
 }

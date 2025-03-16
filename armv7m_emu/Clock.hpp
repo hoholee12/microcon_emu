@@ -40,7 +40,7 @@ extern uint32 Clock_var_maxtickrate;
 extern uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 extern uint32 Clock_totalsimclock;	// multiply of these two
 extern int Clock_var_sleepfor;
-extern uint32 Clock_var_vectorarrmode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
+extern uint32 Clock_var_vectormode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
 
 extern uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 
@@ -65,14 +65,15 @@ extern uint32 Clock_arr_map;
 extern struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 
-/* Clock schedule arr 
+/* Clock schedule vector 
 * 
 * malloc memory
 * one long cylinder that plays instruments with its pins
 * 
 * uint32 (32bits) -> 32 functions possible at one tick
 */
-extern uint32* Clock_schedule_arr;	// dynamically allocated
+extern uint32* Clock_schedule_vect;	// dynamically allocated
+extern uint32* Clock_schedule_linkvect;	// used when vectormode enabled
 
 
 // static instead of extern, this is only to be used in Clock.
@@ -97,7 +98,7 @@ extern void Clock_init();
 // main body for counting ticks
 extern void Clock_body_main();
 // sub body for launching objfuncs
-extern void Clock_body_sub(uint32 _cyclecountdown, uint32 *tn, uint32 *ti);
+extern void Clock_body_sub(int _cyclecountdown, uint32 *tn, uint32 *ti);
 
 // function to insert clock objects in. master must always be index 0!!
 // obj is copied so you no need to worry about obj getting dereferenced.
