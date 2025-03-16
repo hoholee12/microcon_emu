@@ -78,10 +78,12 @@ void Clock_init()
 	Clock_var_wake = 1;
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
-	Clock_var_totalsimclock = 0;
 
 	Clock_var_vectormode = 0;
 	Clock_var_poweron = 0;
+
+	Clock_var_totalsimclock_prev = Clock_var_totalsimclock;
+	Clock_var_totalsimclock = 0;
 }
 
 static inline void Clock_pause_sleep() {
@@ -93,6 +95,7 @@ static inline void Clock_pause_sleep() {
 // main body (synchronized by 60fps)
 void Clock_body_main()
 {
+	// everything here before the while loop is only to be executed once.
 	const int one_second = 1000;
 	uint32 frame_count = 0;
 	uint32 short_term_index = 0;
@@ -101,6 +104,7 @@ void Clock_body_main()
 
 	// for the simclock
 	Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
+	Clock_var_totalsimclock_prev = Clock_var_totalsimclock;
 	uint32 simclockcurrent = Clock_var_totalsimclock;
 	uint32 simclockloopcount = control_fps;
 	uint32 simclocktosend = 0;
@@ -109,14 +113,32 @@ void Clock_body_main()
 
 	while (1) {
 
-		// keep recalculating the simclock
+		// recalculate simclock when clock scheduler has regenerated.
+		/*
+		* we need to scale the bn and bi according to the new Clock_var_totalsimclock value.
+		* 
+		* integer only (multiply by 100)
+		* 
+		* bn * bi = prev_bpos = previous position on the tape (1234)
+		* Clock_var_totalsimclock_prev = previous tape size (5000)
+		* 
+		* Clock_var_totalsimclock = regenerated tape size (7500)
+		* cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev (7500 * 100 / 5000 = 150) (100th percentile)
+		* cur_bpos = prev_bpos * cur_percentage / 100 (1234 * 150 / 100 = 1851)
+		*/
 		if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
 			Clock_var_poweron_prevcount = Clock_var_poweron_count;
 			Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
 			simclockloopcount = control_fps;
-			simclockcurrent = Clock_var_totalsimclock;	// TODO: on regen, we need to recalculate simclockcurrent, bn, bi
-			bn = 0;
-			bi = 0;
+			simclockcurrent = Clock_var_totalsimclock;
+			uint32 prev_bpos = bn * bi;
+			uint32 cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev;
+			uint32 cur_bpos = prev_bpos * cur_percentage / 100;
+
+			// now we calculate the individual bn, bi
+			bn = cur_bpos / Clock_var_maxtickrate;
+			bi = cur_bpos - (cur_bpos / Clock_var_maxtickrate) * Clock_var_maxtickrate; /* cur_bpos % Clock_var_maxtickrate */
+
 		}
 
 		// wait until clock regen finished
