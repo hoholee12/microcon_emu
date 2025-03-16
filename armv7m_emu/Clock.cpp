@@ -2,7 +2,8 @@
 
 /*
 *
-* clockspeed simulator
+* clock based peripheral scheduler
+* 
 * range from 1hz ~ 100,000,000hz(100mhz)
 * features:
 * - live changing of clockspeed
@@ -39,14 +40,14 @@ uint32 Clock_var_vectormode;	// shows what mode the scheduler is running with. 0
 uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 uint32 Clock_var_poweron_count = 0;
 uint32 Clock_var_poweron_prevcount = 0;
-uint32 Clock_var_poweron_interruptable;
+uint32 Clock_var_poweron_interruptable = 1;
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
 
 uint32 Clock_var_wake;
 
-uint32 Clock_arr_map;
+uint32 Clock_arr_map = 0;
 
 /* Clock schedule vector
 *
@@ -63,7 +64,7 @@ struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 void Clock_init() 
 {
-	while (Clock_var_poweron_interruptable == 1) {}	// wait until scheduler finishes
+	while (Clock_var_poweron_interruptable == 0) {}	// wait until scheduler finishes
 
 	// deallocate previous entry
 	if ((Clock_schedule_vect_alloc & 0x1) != 0x0) {
@@ -73,8 +74,6 @@ void Clock_init()
 		free(Clock_schedule_linkvect);
 	}
 
-
-	Clock_arr_map = 0;
 	Clock_var_wake = 1;
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
@@ -95,7 +94,7 @@ static inline void Clock_pause_sleep() {
 // main body (synchronized by 60fps)
 void Clock_body_main()
 {
-	// everything here before the while loop is only to be executed once.
+	// -------- everything here before the while loop is only to be executed once. //
 	const int one_second = 1000;
 	uint32 frame_count = 0;
 	uint32 short_term_index = 0;
@@ -110,6 +109,8 @@ void Clock_body_main()
 	uint32 simclocktosend = 0;
 	uint32 bn = 0;
 	uint32 bi = 0;
+
+	// -------- everything here before the while loop is only to be executed once. //
 
 	while (1) {
 
@@ -289,27 +290,31 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 
 			Clock_curmap = Clock_schedule_vect[i];	// each bitmap frame
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
+
+				// backup before launching procedures
+				Clock_var_poweron_prevcount = Clock_var_poweron_count;
+
 				// iterate and launch procedures
+				uint32 Clock_curmap_temp = Clock_curmap; // backup because Clock_curmap may be altered in procedure
 				for (uint32 j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
-					if ((Clock_curmap >> j) & 0x1) {
-						Clock_var_poweron_prevcount = Clock_var_poweron_count;
+					if ((Clock_curmap_temp >> j) & 0x1) {
 
 						Clock_var_poweron_interruptable = 1;
 						Clock_arr[j].objfunc();	// run!
 						Clock_var_poweron_interruptable = 0;
-
-						// the invoked function can change peri setup whilst running(init -> add -> ready)
-						// when that shit happens, get out instantly
-						if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
-							// backup state
-							*tn = n;
-							*ti = i + cyclecountdown;	// just undo cycles (is ok because nothing happens inbetween skip)
-							Clock_var_tick += cyclecountdown;	// undo Clock_var_tick
-
-							Clock_var_poweron_interruptable = 1;
-							return;
-						}
 					}
+				}
+
+				// the invoked function can change peri setup whilst running(init -> add -> ready)
+				// when that shit happens, get out instantly
+				if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
+					// backup state
+					*tn = n;
+					*ti = i + cyclecountdown;	// just undo cycles (is ok because nothing happens inbetween skip)
+					Clock_var_tick += cyclecountdown;	// undo Clock_var_tick
+
+					Clock_var_poweron_interruptable = 1;
+					return;
 				}
 
 
@@ -319,13 +324,13 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 					// if end of tape, get to the next interation
 					if (Clock_schedule_linkvect[i] == 0) {
 						cyclecountdown -= (Clock_var_maxtickrate + 1 - i);
-						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);
+						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);	// will be optimized out on any decent compiler
 						break;	// i is reset
 					}
 
 					// keep skipping
 					Clock_var_tick += (Clock_schedule_linkvect[i] - i - 1);
-					cyclecountdown -= (Clock_schedule_linkvect[i] - i - 1);
+					cyclecountdown -= (Clock_schedule_linkvect[i] - i - 1); // will be optimized out on any decent compiler
 					i = Clock_schedule_linkvect[i] - 1;	// -1 because i++ is applied after this.
 				}
 			}
@@ -374,6 +379,33 @@ void Clock_add(uint32 index, Clock_struct* clock_obj)
 
 	Clock_arr_map |= (0x1 << index);
 	Clock_arr[index] = *clock_obj;	// copy obj
+
+}
+
+// replace obj without disturbing other objs
+void Clock_replace(uint32 index, Clock_struct* clock_obj)
+{
+	// sanity check
+	if (index < 0 && index >= CLOCK_MAX_SCHEDULE_SIZE) {
+		printf("clock obj index out of range!\n");
+		return;
+	}
+
+	if ((index == 0 && clock_obj->clock_type != Clock_type_enum::master)
+		|| (index != 0 && clock_obj->clock_type == Clock_type_enum::master)) {
+		printf("only master obj can be inserted to index 0\n");
+		return;
+	}
+
+	// end sanity check
+
+	Clock_arr_map |= (0x1 << index);
+	Clock_arr[index] = *clock_obj;	// copy obj
+
+}
+
+// remove obj and its children objs
+void Clock_remove(uint32 index) {
 
 }
 

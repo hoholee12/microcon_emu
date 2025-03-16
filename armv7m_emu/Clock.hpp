@@ -4,7 +4,8 @@
 
 /*
 *
-* clockspeed simulator
+* clock based peripheral scheduler
+*
 * range from 1hz ~ 100,000,000hz(100mhz)
 * features:
 * - live changing of clockspeed
@@ -27,6 +28,7 @@
 *                                         -> 200mhz (peripheral3)
 *
 */
+
 
 
 static const uint32 control_fps = 60;
@@ -103,6 +105,8 @@ extern void Clock_body_sub(int _cyclecountdown, uint32 *tn, uint32 *ti);
 // function to insert clock objects in. master must always be index 0!!
 // obj is copied so you no need to worry about obj getting dereferenced.
 extern void Clock_add(uint32 index, Clock_struct* clock_obj);
+extern void Clock_replace(uint32 index, Clock_struct* clock_obj);
+extern void Clock_remove(uint32 index);
 
 // calculate LCM and generate clock schedule arr for run
 extern void Clock_ready();

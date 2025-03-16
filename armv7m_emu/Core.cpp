@@ -33,6 +33,21 @@ void test_peri3() {
 
 	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
 		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
+
+
+	// TODO: clock drift test (must not drift, otherwise accuracy is at stake!)
+	
+	if (test_peri3_count % 10 == 0) {
+		
+		struct Clock_struct clockmul0;	// to mul0
+		Clock_init();
+		clockmul0.linked_by = 0;
+		clockmul0.clock_type = Clock_type_enum::midobj;
+		clockmul0.multiplier = 70;	// 0.7
+		Clock_replace(2, &clockmul0);
+		Clock_ready();
+	}
+	
 }
 
 void test_peri_print() {
