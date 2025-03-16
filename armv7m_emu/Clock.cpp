@@ -30,6 +30,7 @@
 
 /* maxtickrate based on LCM of all objects (simulated tickrate) */
 uint32 Clock_var_maxtickrate;
+uint32 Clock_var_maxtickrate_prev;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 uint32 Clock_var_totalsimclock;	// multiply of these two
 uint32 Clock_var_totalsimclock_prev;
@@ -75,6 +76,7 @@ void Clock_init()
 	}
 
 	Clock_var_wake = 1;
+	Clock_var_maxtickrate_prev = Clock_var_maxtickrate;
 	Clock_var_maxtickrate = 0;
 	Clock_var_tickratemul = 1; // initial start as 1x
 
@@ -104,6 +106,7 @@ void Clock_body_main()
 	// for the simclock
 	Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
 	Clock_var_totalsimclock_prev = Clock_var_totalsimclock;
+	Clock_var_maxtickrate_prev = Clock_var_maxtickrate;
 	uint32 simclockcurrent = Clock_var_totalsimclock;
 	uint32 simclockloopcount = control_fps;
 	uint32 simclocktosend = 0;
@@ -120,7 +123,7 @@ void Clock_body_main()
 		* 
 		* integer only (multiply by 100)
 		* 
-		* bn * bi = prev_bpos = previous position on the tape (1234)
+		* bn * Clock_var_maxtickrate_prev + bi = prev_bpos = previous position on the tape (1234)
 		* Clock_var_totalsimclock_prev = previous tape size (5000)
 		* 
 		* Clock_var_totalsimclock = regenerated tape size (7500)
@@ -132,7 +135,7 @@ void Clock_body_main()
 			Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
 			simclockloopcount = control_fps;
 			simclockcurrent = Clock_var_totalsimclock;
-			uint32 prev_bpos = bn * bi;
+			uint32 prev_bpos = bn * Clock_var_maxtickrate_prev + bi;
 			uint32 cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev;
 			uint32 cur_bpos = prev_bpos * cur_percentage / 100;
 
