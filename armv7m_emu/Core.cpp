@@ -31,8 +31,8 @@ void test_peri3() {
 	// printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
 	test_peri3_count += 1;
 
-	//printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
-	//	test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
+	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
+		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
 }
 
 void test_peri_print() {

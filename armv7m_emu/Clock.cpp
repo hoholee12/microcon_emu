@@ -31,10 +31,14 @@
 uint32 Clock_var_maxtickrate;
 uint32 Clock_var_tickratemul;	// multiplier for maxtickrate
 uint32 Clock_var_totalsimclock;	// multiply of these two
+uint32 Clock_var_totalsimclock_prev;
+
 int Clock_var_sleepfor;
 uint32 Clock_var_vectormode;	// shows what mode the scheduler is running with. 0 is tape, 1 is vectorarr
 
 uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
+uint32 Clock_var_poweron_count = 0;
+uint32 Clock_var_poweron_prevcount = 0;
 uint32 Clock_var_poweron_interruptable;
 
 /* simple freerunning tick */
@@ -105,6 +109,16 @@ void Clock_body_main()
 
 	while (1) {
 
+		// keep recalculating the simclock
+		if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
+			Clock_var_poweron_prevcount = Clock_var_poweron_count;
+			Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
+			simclockloopcount = control_fps;
+			simclockcurrent = Clock_var_totalsimclock;	// TODO: on regen, we need to recalculate simclockcurrent, bn, bi
+			bn = 0;
+			bi = 0;
+		}
+
 		// wait until clock regen finished
 		// this is to happen when clockspeed changed or peripheral added mid-run.
 		while (Clock_var_poweron == 0) {}
@@ -163,7 +177,7 @@ void Clock_body_main()
 			// reset if loopcount hits zero
 			simclockloopcount = control_fps;
 			simclockcurrent = Clock_var_totalsimclock;
-			// i am 100 sure these will be at their ultimate max value when loopcount hits zero
+			// these will be at their ultimate max value when loopcount hits zero
 			bn = 0;
 			bi = 0;
 		}
@@ -251,13 +265,28 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 			}
 
 
-
 			Clock_curmap = Clock_schedule_vect[i];	// each bitmap frame
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
 				// iterate and launch procedures
 				for (uint32 j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
 					if ((Clock_curmap >> j) & 0x1) {
+						Clock_var_poweron_prevcount = Clock_var_poweron_count;
+
+						Clock_var_poweron_interruptable = 1;
 						Clock_arr[j].objfunc();	// run!
+						Clock_var_poweron_interruptable = 0;
+
+						// the invoked function can change peri setup whilst running(init -> add -> ready)
+						// when that shit happens, get out instantly
+						if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
+							// backup state
+							*tn = n;
+							*ti = i + cyclecountdown;	// just undo cycles (is ok because nothing happens inbetween skip)
+							Clock_var_tick += cyclecountdown;	// undo Clock_var_tick
+
+							Clock_var_poweron_interruptable = 1;
+							return;
+						}
 					}
 				}
 
@@ -481,6 +510,8 @@ void Clock_ready()
 		}
 	}
 
+	// debug
+	//Clock_var_vectormode = 0;
 
 	/*
 	* create a new linkvector
@@ -502,6 +533,7 @@ void Clock_ready()
 	}
 
 	Clock_var_poweron = 1;	// ready to run.
+	Clock_var_poweron_count += 1;
 }
 
 uint32 Clock_currenttime() {
