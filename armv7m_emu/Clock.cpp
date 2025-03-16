@@ -133,7 +133,11 @@ void Clock_body_main()
 		if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
 			Clock_var_poweron_prevcount = Clock_var_poweron_count;
 			Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
+
+			// TODO - figure out why this causes huge drift forward
+			// simclockloopcount = control_fps;
 			simclockcurrent = Clock_var_totalsimclock;
+			
 			uint32 prev_bpos = bn * Clock_var_maxtickrate_prev + bi;
 			uint32 cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev;
 			uint32 cur_bpos = prev_bpos * cur_percentage / 100;
