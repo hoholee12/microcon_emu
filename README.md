@@ -1,2 +1,2 @@
-# mcu_emu
+# microcon_emu
 ## risc-v isa

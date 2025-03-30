@@ -14,7 +14,7 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{9416907e-8e4b-4717-8a7c-ddd1c7976e35}</ProjectGuid>
-    <RootNamespace>armv7m_emu</RootNamespace>
+    <RootNamespace>microcon_emu</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
