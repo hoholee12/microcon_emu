@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include <windows.h>
 #include <profileapi.h>	// for QueryPerformanceCounter
-
+#include <setjmp.h>
+#include <intrin.h>
 
 
 // type defines

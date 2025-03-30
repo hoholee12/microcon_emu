@@ -19,11 +19,10 @@ void CPU_init(uint32 pc_pos, uint32 sp_pos) {
 
 }
 
-// execute one cycle
+// execute one cycle: this goes in the clock scheduler as cpu peri
 void CPU_fetch() {
-
-	// hello
-
+	uint32 PC = CPU_read_PC();
 
 
 }
+

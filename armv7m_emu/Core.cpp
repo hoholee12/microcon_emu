@@ -55,9 +55,89 @@ void test_peri_print() {
 
 }
 
+enum hell { op321, op123, op456, op654, op234, op432, op111 };
+
+void hello_opt(int* data, int* value) {
+	int i = 0;
+	static int op_table[1000];
+
+	op_table[321] = op321;
+	op_table[123] = op123;
+	op_table[456] = op456;
+	op_table[654] = op654;
+	op_table[234] = op234;
+	op_table[432] = op432;
+	op_table[111] = op111;
+	while (1) {
+		switch (op_table[data[i++]]) {	// the case values must be adjacent to each other for the compiler to optimize it to jump table (jump table confirmed at O0)
+		case op321:
+			*value *= *value;
+			break;
+		case op123:
+			*value += *value;
+			break;
+		case op456:
+			*value /= *value;
+			break;
+		case op654:
+			*value -= *value;
+			break;
+		case op234:
+			*value = *value + 123;
+			break;
+		case op432:
+			*value = *value + 321;
+			break;
+		case op111:
+			return;
+		default:
+			__assume(0);	// this shit dont really matter, the compiler already optimizes it out on O0
+			break;
+		}
+	}
+}
 
 void Core_mainThread() {
 	// FOR NOW: we shall do test running here
+
+	int* data = (int *)calloc(0x10000000, sizeof(int));
+
+	for (int i = 0; i < 0x10000000; i++) {
+		switch (i % 6) {
+		case 0:
+			data[i] = 123;
+			break;
+		case 1:
+			data[i] = 321;
+			break;
+
+		case 2:
+			data[i] = 234;
+			break;
+		case 3:
+			data[i] = 432;
+			break;
+		case 4:
+			data[i] = 456;
+			break;
+		case 5:
+			data[i] = 654;
+			break;
+
+		}
+	}
+	data[0x10000000 - 1] = 111;
+	int value = 121;
+
+	hello_opt(data, &value);			// 1st place
+
+	printf("value = %d\n", value);
+
+
+
+
+
+	return;
 
 	Clock_body_main();
 

@@ -7,6 +7,13 @@
 // - it contains cpu-state, cpu-registers
 
 
+/*
+* 
+* TODO: cycle-accurate simulator with a pinpoint accuracy on pipeline stalls
+* (branch prediction included)
+*/
+
+
 // variables
 
 // cpu register
@@ -46,6 +53,11 @@ extern struct CPU_struct_reg CPU_var_reg;
 #define CPU_write_apsr_z(x) do{uint32 temp = (x & 0x1) << 30; CPU_var_reg.apsr |= temp; }while(0);
 #define CPU_write_apsr_c(x) do{uint32 temp = (x & 0x1) << 29; CPU_var_reg.apsr |= temp; }while(0);
 #define CPU_write_apsr_v(x) do{uint32 temp = (x & 0x1) << 28; CPU_var_reg.apsr |= temp; }while(0);
+
+
+#define CPU_read_SP() (CPU_var_reg.r[13])
+#define CPU_read_LR() (CPU_var_reg.r[14])
+#define CPU_read_PC() (CPU_var_reg.r[15])
 
 // functions
 
