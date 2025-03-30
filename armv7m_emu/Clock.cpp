@@ -43,6 +43,13 @@ uint32 Clock_var_poweron_count = 0;
 uint32 Clock_var_poweron_prevcount = 0;
 uint32 Clock_var_poweron_interruptable = 1;
 
+/* scheduler - hint for how many cycles it can use before handing off to another peri */
+uint32 Clock_var_hintcycles = 1;
+/* user - acknowledge and send cycles actually used, so that the scheduler can skip next iterations */
+/* scheduler will throw warning if usedcycles > hintcycles */
+/* always set this 1 by default */
+uint32 Clock_var_usedcycles = 1;
+
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
 
@@ -308,6 +315,13 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 						Clock_var_poweron_interruptable = 1;
 						Clock_arr[j].objfunc();	// run!
 						Clock_var_poweron_interruptable = 0;
+						// TODO
+						if (Clock_var_usedcycles > Clock_var_hintcycles) {
+							printf("user peri has used too much cycles!! expect desync\n");
+						}
+						else {
+							Clock_var_hintcycles -= Clock_var_usedcycles;
+						}
 					}
 				}
 
@@ -330,13 +344,13 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 					// if end of tape, get to the next interation
 					if (Clock_schedule_linkvect[i] == 0) {
 						cyclecountdown -= (Clock_var_maxtickrate + 1 - i);
-						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);	// will be optimized out on any decent compiler
+						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);	// will be optimized out by any decent compiler
 						break;	// i is reset
 					}
 
 					// keep skipping
 					Clock_var_tick += (Clock_schedule_linkvect[i] - i - 1);
-					cyclecountdown -= (Clock_schedule_linkvect[i] - i - 1); // will be optimized out on any decent compiler
+					cyclecountdown -= (Clock_schedule_linkvect[i] - i - 1); // will be optimized out by any decent compiler
 					i = Clock_schedule_linkvect[i] - 1;	// -1 because i++ is applied after this.
 				}
 			}
@@ -547,6 +561,35 @@ void Clock_ready()
 			}
 		}
 	}
+
+	/*
+	* hint for cycles
+	* 1. 1000
+	* 2. 300
+	* 
+	* lcm = 3000
+	* 
+	* 1  4  7  10 13 16 19 22 25 28
+	* 100100100100100100100100100100...
+	* 100000000010000000001000000000...
+	* 1         11        21
+	* 
+	* 2s cycle = 3000 / 300 = 10
+	* 1s cycle = 3000 / 1000 = 3
+	* 
+	* current cycle = 13
+	* 
+	* 2s cycle + 1 - (current cycle % 2s cycle) =  remaining cycle before other peri
+	* 
+	* 10 + 1 - (13 % 10) = 11 - 3 = 8
+	* 
+	* we need: array of cycles for all peri (divided by lcm)
+	* we only need to calculate this just before running each obj
+	* 
+	*/
+	// TODO
+
+
 
 	/*
 	* check if the bumps are too far away from each other

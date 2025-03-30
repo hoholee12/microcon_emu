@@ -137,7 +137,7 @@ void Core_mainThread() {
 
 
 
-	return;
+	//return;
 
 	Clock_body_main();
 

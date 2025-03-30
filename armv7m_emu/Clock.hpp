@@ -46,6 +46,13 @@ extern uint32 Clock_var_vectormode;	// shows what mode the scheduler is running 
 
 extern uint32 Clock_var_poweron; // 0 when regen, 1 when ready to run
 
+/* scheduler - hint for how many cycles it can use before handing off to another peri */
+extern uint32 Clock_var_hintcycles;
+/* user - acknowledge and send cycles actually used, so that the scheduler can skip next iterations */
+/* scheduler will throw warning if usedcycles > hintcycles */
+/* always set this 1 by default */
+extern uint32 Clock_var_usedcycles;
+
 /* simple freerunning tick */
 extern uint32 Clock_var_tick;
 
