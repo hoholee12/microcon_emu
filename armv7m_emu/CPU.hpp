@@ -42,6 +42,38 @@ struct CPU_struct_reg {
 				// UNALIGN_TRP(3): 0 - unaligned access dont trap, 1 - traps
 				// USERSETMPEND(1): 0 - unprivileged cannot access STIR(software trigger interrupt reg), 1 - can
 				// NONBASETHRDENA(0): 0 - attempting to return to thread mode WHILE there are remaining active exceptions will trigger another exception, 1 - can return fine because assume its controlled.
+
+};
+
+extern uint32 CPU_op_vect[0xFF]; // 8 bits
+extern uint32 CPU_op_vect_ext[0xFF]; // extend to 16 bits
+
+enum CPU_op_enum {
+	NOP,
+	/* shift op */
+	LSL,
+	LSR,
+	ASR,
+	ROR,
+	RRX,
+
+	/* add op */
+	ADC_imm,
+	ADC_reg,
+	ADD_imm,
+	ADD_reg,
+	ADD_sp_imm,
+	ADD_sp_reg,
+
+	/* TODO... */
+
+
+
+
+
+
+
+
 };
 
 extern struct CPU_struct_reg CPU_var_reg;
@@ -58,6 +90,12 @@ extern struct CPU_struct_reg CPU_var_reg;
 #define CPU_read_SP() (CPU_var_reg.r[13])
 #define CPU_read_LR() (CPU_var_reg.r[14])
 #define CPU_read_PC() (CPU_var_reg.r[15])
+#define CPU_read_apsr_n (CPU_var_reg.apsr >> 31 & 0x1)
+#define CPU_read_apsr_z (CPU_var_reg.apsr >> 30 & 0x1)
+#define CPU_read_apsr_c (CPU_var_reg.apsr >> 29 & 0x1)
+#define CPU_read_apsr_v (CPU_var_reg.apsr >> 28 & 0x1)
+
+
 
 // functions
 

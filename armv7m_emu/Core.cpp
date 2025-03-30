@@ -39,7 +39,7 @@ void test_peri3() {
 	// TODO: clock drift test (must not drift, otherwise accuracy is at stake!)
 
 	CLOCK_SET_USE_CYCLES = CLOCK_GET_AVAILABLE_CYCLES();
-	/*
+	
 	if (test_peri3_count % 10 == 0) {
 
 		struct Clock_struct clockmul0;	// to mul0
@@ -50,13 +50,12 @@ void test_peri3() {
 		Clock_replace(2, &clockmul0);
 		Clock_ready();
 	}
-	*/
+	
 }
 
 void test_peri_print() {
 	test_peri4_count += 1;
 	printf("%d seconds passed. slept: %d\n", test_peri4_count, Clock_var_sleepfor);
-	
 
 }
 

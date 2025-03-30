@@ -3,6 +3,9 @@
 
 struct CPU_struct_reg CPU_var_reg = { 0, };
 
+uint32 CPU_op_vect[0xFF];
+uint32 CPU_op_vect_ext[0xFF];
+
 void CPU_init(uint32 pc_pos, uint32 sp_pos) {
 	// init to zero
 	memset(&CPU_var_reg, NULL, 16);
@@ -15,6 +18,7 @@ void CPU_init(uint32 pc_pos, uint32 sp_pos) {
 	CPU_write_apsr_z(0);
 	CPU_write_apsr_c(0);
 	CPU_write_apsr_v(0);
+
 
 
 }
