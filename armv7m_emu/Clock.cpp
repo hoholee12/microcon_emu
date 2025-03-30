@@ -44,11 +44,11 @@ uint32 Clock_var_poweron_prevcount = 0;
 uint32 Clock_var_poweron_interruptable = 1;
 
 /* scheduler - hint for how many cycles it can use before handing off to another peri */
-uint32 Clock_var_hintcycles = 1;
+uint32 Clock_var_availcycles[CLOCK_MAX_SCHEDULE_SIZE];
+uint32 Clock_var_availcycles_idx = 0;
 /* user - acknowledge and send cycles actually used, so that the scheduler can skip next iterations */
-/* scheduler will throw warning if usedcycles > hintcycles */
 /* always set this 1 by default */
-uint32 Clock_var_usedcycles = 1;
+uint32 Clock_var_usecycles = 1;
 
 /* simple freerunning tick */
 uint32 Clock_var_tick = 0;
@@ -69,6 +69,10 @@ uint32* Clock_schedule_linkvect;	// used when vectormode enabled
 uint32 Clock_schedule_vect_alloc;	// 1 when vect, 3 when vect + linkvect is allocated
 
 struct Clock_struct Clock_arr[CLOCK_MAX_SCHEDULE_SIZE];
+
+uint32 Clock_var_maxindex = 0;
+uint32 Clock_tickratearr[CLOCK_MAX_SCHEDULE_SIZE];
+uint32 Clock_div_arr[CLOCK_MAX_SCHEDULE_SIZE];
 
 void Clock_init() 
 {
@@ -300,27 +304,41 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 				return;	// get out !!!
 			}
 
-
 			Clock_curmap = Clock_schedule_vect[i];	// each bitmap frame
 			if (Clock_curmap != 0) {	// just check the bitmap in its entirety first
 
 				// backup before launching procedures
 				Clock_var_poweron_prevcount = Clock_var_poweron_count;
 
+				// check hintavail first
+				for (uint32 j = 0; j < Clock_var_maxindex; j++) {
+					if ((Clock_curmap >> j) & 0x1) {
+						// set hint cycles
+						Clock_var_availcycles[j] = Clock_hintavail_cycle(j, n, i);
+					}
+				}
+
+
 				// iterate and launch procedures
-				uint32 Clock_curmap_temp = Clock_curmap; // backup because Clock_curmap may be altered in procedure
-				for (uint32 j = 0; j < CLOCK_MAX_SCHEDULE_SIZE; j++) {
-					if ((Clock_curmap_temp >> j) & 0x1) {
+				for (uint32 j = 0; j < Clock_var_maxindex; j++) {
+					if ((Clock_curmap >> j) & 0x1) {
+						// set hint cycles
+						if (Clock_var_availcycles[j] == 0) {
+							continue; // do nothing when usable cycle is empty
+						}
+						Clock_var_availcycles_idx = j;
+						Clock_var_usecycles = 1;
 
 						Clock_var_poweron_interruptable = 1;
 						Clock_arr[j].objfunc();	// run!
 						Clock_var_poweron_interruptable = 0;
-						// TODO
-						if (Clock_var_usedcycles > Clock_var_hintcycles) {
-							printf("user peri has used too much cycles!! expect desync\n");
+						
+						if (Clock_var_availcycles[j] < Clock_var_usecycles) {
+							printf("too much cycles used!! expect desync\n");
+							Clock_var_availcycles[j] = 0;
 						}
 						else {
-							Clock_var_hintcycles -= Clock_var_usedcycles;
+							Clock_var_availcycles[j] -= Clock_var_usecycles;
 						}
 					}
 				}
@@ -466,13 +484,13 @@ void Clock_ready()
 {
 	uint32 masterclock = 0;
 	uint32 tmpclock = 0;
-	uint32 Clock_tickratearr[CLOCK_MAX_SCHEDULE_SIZE];
 
 	uint32 usec_per_tick = 0;
 
 	memset(Clock_tickratearr, 0, CLOCK_MAX_SCHEDULE_SIZE);
 
 	// calculate LCM
+	Clock_var_maxindex = 0;	// for peri only
 	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
@@ -486,6 +504,7 @@ void Clock_ready()
 				tmpclock = Clock_ready_getmaxvalperobj(masterclock, i);
 				Clock_var_maxtickrate = Clock_lcm(Clock_var_maxtickrate, tmpclock);
 				Clock_tickratearr[i] = tmpclock;
+				Clock_var_maxindex = i + 1;	// for peri only
 				break;
 			default: 
 				break;
@@ -544,7 +563,7 @@ void Clock_ready()
 	*     loop schedule arr
 	*
 	*/
-	for (uint32 i = 0; i < CLOCK_MAX_SCHEDULE_SIZE; i++) {
+	for (uint32 i = 0; i < Clock_var_maxindex; i++) {
 		if ((Clock_arr_map >> i) & 0x1) {
 			switch (Clock_arr[i].clock_type) {
 			case Clock_type_enum::peri:	//including cpu
@@ -587,9 +606,18 @@ void Clock_ready()
 	* we only need to calculate this just before running each obj
 	* 
 	*/
-	// TODO
-
-
+	// generate array of cycles for all peri (divided by lcm)
+	for (uint32 i = 0; i < Clock_var_maxindex; i++) {
+		if ((Clock_arr_map >> i) & 0x1) {
+			switch (Clock_arr[i].clock_type) {
+			case Clock_type_enum::peri:	//including cpu
+				Clock_div_arr[i] = Clock_var_maxtickrate / Clock_tickratearr[i];
+				break;
+			default:
+				break;
+			}
+		}
+	}
 
 	/*
 	* check if the bumps are too far away from each other

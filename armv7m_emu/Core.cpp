@@ -18,23 +18,28 @@ void test_pericpu() {
 void test_peri0() {
 	// printf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
 	test_peri0_count += 1;
+	printf("peri0: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri1() {
 	// printf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
 	test_peri1_count += 1;
+	printf("peri1: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri2() {
 	// printf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
 	test_peri2_count += 1;
+	printf("peri2: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri3() {
 	// printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
 	test_peri3_count += 1;
 
-	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d\n", test_pericpu_count, 
-		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count);
+	printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d, Clock_var_hintcycles: %d\n", test_pericpu_count, 
+		test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count, CLOCK_GET_AVAILABLE_CYCLES());
 	// TODO: clock drift test (must not drift, otherwise accuracy is at stake!)
 
+	CLOCK_SET_USE_CYCLES = CLOCK_GET_AVAILABLE_CYCLES();
+	/*
 	if (test_peri3_count % 10 == 0) {
 
 		struct Clock_struct clockmul0;	// to mul0
@@ -45,7 +50,7 @@ void test_peri3() {
 		Clock_replace(2, &clockmul0);
 		Clock_ready();
 	}
-
+	*/
 }
 
 void test_peri_print() {
