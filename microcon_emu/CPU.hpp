@@ -23,16 +23,74 @@
 *   v: overflow (signed overflow - probably bad), q: for DSP instructions- not supported)
 * 
 */
+
+struct APSR_t{
+	uint32 N			: 1;
+	uint32 Z			: 1;
+	uint32 C			: 1;
+	uint32 V			: 1;
+	uint32 Q			: 1;
+	uint32 notmine1		: 7;
+	uint32 GE3			: 1;
+	uint32 GE2			: 1;
+	uint32 GE1			: 1;
+	uint32 GE0			: 1;
+	uint32 notmine0		: 16;
+};
+
+struct IPSR_t{
+	uint32 notmine0		: 23;
+	uint32 exception	: 9;
+};
+
+struct EPSR_t{
+	uint32 notmine2		: 5;
+	uint32 ICIT1		: 2;
+	uint32 T			: 1;
+	uint32 notmine1		: 8;
+	uint32 ICIT0		: 6;
+	uint32 notmine0		: 10;
+};
+
+union xPSR_t {
+	struct APSR_t APSR;
+	struct IPSR_t IPSR;
+	struct EPSR_t EPSR;
+};
+
+struct CONTROL_t {
+	uint32 nPRIV		: 1;
+	uint32 SPSEL		: 1;
+	uint32 FPCA			: 2;
+	uint32 notmine0		: 28;
+};
+
 struct CPU_struct_reg {
-	uint32 r[16];	// r13: SP, r14: LR, r15: PC
-	uint32 apsr;	// n(31), z(30), c(29), v(28), q(27), 0, 0, 0, 0, 0, 0, 0, ge2, ge1, ge0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-					// <ge is for dsp extension only>
+	uint32 R[16];	// r13: SP, r14: LR, r15: PC
+	xPSR_t xPSR;	// <APSR.GE is for dsp extension only>
+					// contains APSR, IPSR, EPSR
+
+	uint32 MSP, PSP;	//main stack (for kernel use probably), process stack (user)
+
 	uint32 fpscr;	// for floating point control status reg. n, z, c, v is in same bit index as apsr.
 
-	uint32 exception;	// exception number. should be 0 on running.
-	uint32 primask, faultmask, basepri[16];
+	uint32 PRIMASK, FAULTMASK, BASEPRI;	// special purpose mask regs (if unprivileged, they are RAZ/WI (read as zero / write ignored))
+				// PRIMASK: exception. setting it to 1 raises execution priority to 0 (theres only 1 bit)
+				// BASEPRI: for priority level (beginning 8bits are used) (used for masking any interrupts that has less priority than this limit) (0 disables the feature)
+				// FAULTMASK: setting it to 1 raises execution priority to -1(hardfault) (only privilege less than -1 can touch this value(as in actually modify the register content; we're not talking about cpsid/cpsie); aka no one can; clears to 0 when returning from any exception(except Non-Maskable Interrupt)) (theres only 1 bit)
+				//
+				// cpsid f -> FAULTMASK:1
+				// cpsie f -> FAULTMASK:0
+				// cpsid i -> PRIMASK:1
+				// cpsie i -> PRIMASK:0
 
-	uint32 ccr;	// control register
+	CONTROL_t CONTROL;
+				// control register
+				// nPRIV(0): 0 -> thread mode has privilege, 1 -> thread mode doesnt have privilege
+				// SPSEL(1): 0 -> use MSP as current stack, 1 -> use PSP as current stack (in thread mode); value cannot be changed in handler mode
+				// FPCA(2): 0 -> FP extension not active, 1 -> FP extension active
+
+	uint32 CCR;	// control register (?)
 				// BP(18): enable branch prediction
 				// IC(17): enable icache
 				// DC(16): enable dcache
@@ -77,24 +135,6 @@ enum CPU_op_enum {
 };
 
 extern struct CPU_struct_reg CPU_var_reg;
-
-#define CPU_write_SP(x) do{CPU_var_reg.r[13] = x; }while(0);
-#define CPU_write_LR(x) do{CPU_var_reg.r[14] = x; }while(0);
-#define CPU_write_PC(x) do{CPU_var_reg.r[15] = x; }while(0);
-#define CPU_write_apsr_n(x) do{uint32 temp = (x & 0x1) << 31; CPU_var_reg.apsr |= temp; }while(0);
-#define CPU_write_apsr_z(x) do{uint32 temp = (x & 0x1) << 30; CPU_var_reg.apsr |= temp; }while(0);
-#define CPU_write_apsr_c(x) do{uint32 temp = (x & 0x1) << 29; CPU_var_reg.apsr |= temp; }while(0);
-#define CPU_write_apsr_v(x) do{uint32 temp = (x & 0x1) << 28; CPU_var_reg.apsr |= temp; }while(0);
-
-
-#define CPU_read_SP() (CPU_var_reg.r[13])
-#define CPU_read_LR() (CPU_var_reg.r[14])
-#define CPU_read_PC() (CPU_var_reg.r[15])
-#define CPU_read_apsr_n (CPU_var_reg.apsr >> 31 & 0x1)
-#define CPU_read_apsr_z (CPU_var_reg.apsr >> 30 & 0x1)
-#define CPU_read_apsr_c (CPU_var_reg.apsr >> 29 & 0x1)
-#define CPU_read_apsr_v (CPU_var_reg.apsr >> 28 & 0x1)
-
 
 
 // functions
