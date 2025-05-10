@@ -28,6 +28,7 @@ enum Memory_enum_size {u8, u16, u32};
 struct Memory_map_elem {
 	uint32 base;
 	uint32 size;
+	uint32 attrib;
 	uint8* data;	// malloc memory (uint8 for byte access)
 	// for quicker access to next map
 	struct Memory_map_elem* next;
@@ -36,27 +37,52 @@ struct Memory_map_elem {
 
 
 // variables
-
+#define MEMORY_MAP_MAX_SECTIONS 10
 extern Memory_map_elem Memory_var_arr[];
 extern uint32 Memory_var_arrlen;
 
 extern uint32 Memory_var_endianness;	// 0: big(0x1234 -> 0:0x12, 1:0x34), 1: little(0x1234, 0:0x34, 1:0x12)
 
+
+/* allow memory attribute for all
+* -> r, w, x, cacheable, ordered
+* -> user, supervisor
+*/
+#define MEMORY_ATTRIB_U_R 0x1
+#define MEMORY_ATTRIB_U_W 0x2
+#define MEMORY_ATTRIB_U_X 0x4
+#define MEMORY_ATTRIB_U_CACHEABLE 0x8
+#define MEMORY_ATTRIB_U_ORDERED 0x10
+#define MEMORY_ATTRIB_S_R 0x20
+#define MEMORY_ATTRIB_S_W 0x40
+#define MEMORY_ATTRIB_S_X 0x80
+#define MEMORY_ATTRIB_S_CACHEABLE 0x100
+#define MEMORY_ATTRIB_S_ORDERED 0x200
+#define MEMORY_ATTRIB_U_ALL 0x1F
+#define MEMORY_ATTRIB_S_ALL 0x3E0
+#define MEMORY_ATTRIB_ALL 0x3FF
+enum Memory_access_status_enum {none = 0, section_err, attribute_err, reserved};
+// value is 0 by default
+// if value is 1, no section found
+// if value is 2, attribute error
+// always reverts to 0 on re-query
+extern uint32 Memory_var_access_err;
+
 // functions
 
 // memory init map
 // size is in bytes (e.g. 128KB -> size: 0x20000)
-extern void Memory_addMap(uint32 base, uint32 size);
+extern void Memory_addMap(uint32 base, uint32 size, uint32 attrib);
 extern void Memory_init();
 
 
 // memory read
 // size -> 8/16/32 bit
-extern void* Memory_read(uint32 addr, Memory_enum_size sizetype);
+extern void* Memory_read(uint32 addr, Memory_enum_size sizetype, uint32 attrib);
 
 // memory write
 // size -> 8/16/32 bit
-extern void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data);
+extern void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data, uint32 attrib);
 
 
 // get memory map

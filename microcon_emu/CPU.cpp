@@ -23,7 +23,7 @@ void CPU_fetch() {
 	CPU_struct_reg CPU_reg_capture = CPU_var_reg;
 
 	// get pc and get data from memory
-	uint32 data = *(uint32*)Memory_read(CPU_reg_capture.R[15], Memory_enum_size::u32);
+	uint32 data = *(uint32*)Memory_read(CPU_reg_capture.R[15], Memory_enum_size::u32, MEMORY_ATTRIB_ALL);
 
 	// 
 

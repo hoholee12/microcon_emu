@@ -1,23 +1,26 @@
 #include "Memory.hpp"
 
-Memory_map_elem Memory_var_arr[10];
+Memory_map_elem Memory_var_arr[MEMORY_MAP_MAX_SECTIONS];
 uint32 Memory_var_arrlen = 0;
+uint32 Memory_var_access_err = 0;
 
 uint32 Memory_var_endianness = 0;
 
 // memory init map
-void Memory_addMap(uint32 base, uint32 size) {
+
+void Memory_addMap(uint32 base, uint32 size, uint32 attrib) {
 	if (Memory_var_arrlen == 0) {
 		// first add
 		Memory_var_arr[Memory_var_arrlen].next = NULL;
 		Memory_var_arr[Memory_var_arrlen].size = size;
 		Memory_var_arr[Memory_var_arrlen].base = base;
+		Memory_var_arr[Memory_var_arrlen].attrib = attrib;
 		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
 	
 	}
-	else if (Memory_var_arrlen >= 9){
+	else if (Memory_var_arrlen == MEMORY_MAP_MAX_SECTIONS){
 		// last add
-		
+		printf("Memory section full!\n");
 		return;
 	}
 	else {
@@ -26,6 +29,7 @@ void Memory_addMap(uint32 base, uint32 size) {
 		Memory_var_arr[Memory_var_arrlen - 1].next = &Memory_var_arr[Memory_var_arrlen];
 		Memory_var_arr[Memory_var_arrlen].size = size;
 		Memory_var_arr[Memory_var_arrlen].base = base;
+		Memory_var_arr[Memory_var_arrlen].attrib = attrib;
 		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
 	
 	}
@@ -38,6 +42,7 @@ void Memory_init() {
 
 	Memory_var_endianness = 0;
 	Memory_var_arrlen = 0;
+	Memory_var_access_err = 0;
 	// example
 	/* we ignore cache for now
 	* <basic map>
@@ -50,16 +55,15 @@ void Memory_init() {
 	*/
 
 	// Code
-	Memory_addMap(0x0, 0x20000);
+	Memory_addMap(0x0, 0x20000, MEMORY_ATTRIB_S_ALL);
 	// SRAM
-	Memory_addMap(0x20000000, 0x20000);
+	Memory_addMap(0x20000000, 0x20000, MEMORY_ATTRIB_S_ALL);
 
 
 
 }
 
 Memory_map_elem* Memory_getMap(uint32 addr) {
-	
 	if (Memory_var_arrlen > 0) {
 		Memory_map_elem* item = &Memory_var_arr[0];
 		do {
@@ -84,12 +88,22 @@ Memory_map_elem* Memory_getMap(uint32 addr) {
 
 // memory read
 // size -> 8/16/32 bit
-void* Memory_read(uint32 addr, Memory_enum_size sizetype) {
-
+void* Memory_read(uint32 addr, Memory_enum_size sizetype, uint32 attrib) {
 	Memory_map_elem* thismap;
+
+	Memory_var_access_err = 0;
+
+	// get memory section
 	if ((thismap = Memory_getMap(addr)) == NULL) {
 		// fail if NULL is returned (invalid address)
-		printf("invalid address access!\n");
+		Memory_var_access_err = Memory_access_status_enum::section_err;
+		return NULL;
+	}
+
+	// get memory section attribute
+	if ((thismap->attrib & attrib) == 0) {
+		// fail if attribute error
+		Memory_var_access_err = Memory_access_status_enum::attribute_err;
 		return NULL;
 	}
 
@@ -98,8 +112,6 @@ void* Memory_read(uint32 addr, Memory_enum_size sizetype) {
 	//little-endian
 	if (Memory_var_endianness == 0) {
 		return &thismap->data[translated_addr];
-	
-	
 	}
 	else {
 		// big endian - do not support
@@ -123,11 +135,22 @@ void* Memory_read(uint32 addr, Memory_enum_size sizetype) {
 
 // memory write
 // size -> 8/16/32 bit
-void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data) {
+void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data, uint32 attrib) {
 	Memory_map_elem* thismap;
+
+	Memory_var_access_err = 0;
+
+	// get memory section
 	if ((thismap = Memory_getMap(addr)) == NULL) {
 		// fail if NULL is returned (invalid address)
-		printf("invalid address access!\n");
+		Memory_var_access_err = Memory_access_status_enum::section_err;
+		return;
+	}
+
+	// get memory section attribute
+	if ((thismap->attrib & attrib) == 0) {
+		// fail if attribute error
+		Memory_var_access_err = Memory_access_status_enum::attribute_err;
 		return;
 	}
 

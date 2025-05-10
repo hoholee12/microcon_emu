@@ -50,6 +50,46 @@ void test_peri3() {
 		Clock_replace(2, &clockmul0);
 		Clock_ready();
 	}
+
+	if (Core_var_Memory_init) {
+		uint8* dat;
+		// memory check
+		printf("memory read on 0x20000000, it should work\n");
+		dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+		printf("memory write on 0x20000000, it should work\n");
+		Memory_write(0x20000000, Memory_enum_size::u8, 0x12, MEMORY_ATTRIB_S_W);
+
+		printf("memory read on 0x20000000, it should work\n");
+		dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+
+		printf("memory read on 0x1FFFFFFF, it should NOT work\n");
+		dat = (uint8*)Memory_read(0x1FFFFFFF, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+
+		printf("memory read on 0x20000000 with wrong attribute, it should NOT work\n");
+		dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_U_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+
+		// 32bit memory access check
+
+		printf("memory write on 0x20000000, it should work\n");
+		Memory_write(0x20000000, Memory_enum_size::u32, 0xDEADBEEF, MEMORY_ATTRIB_S_R);
+
+		printf("memory read on 0x20000000, it should work\n");
+		dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+		dat = (uint8*)Memory_read(0x20000001, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+		dat = (uint8*)Memory_read(0x20000002, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+		dat = (uint8*)Memory_read(0x20000003, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
+		if (dat != NULL) printf("val = %02x\n", *dat);
+
+		// memory write supported upto 4 byte writes in little-endian. only 1 byte supported for read.
+
+	}
 	
 }
 
@@ -144,55 +184,6 @@ void Core_mainThread() {
 	//return;
 
 	Clock_body_main();
-
-
-	while (1) {
-		Sleep(100);
-		if (Core_var_status != 1) {
-			printf("paused\n");
-			continue;
-		}
-	
-		printf("running\n");
-	
-		if (Core_var_Memory_init) {
-			uint8* dat;
-			// memory check
-			printf("memory read on 0x20000000, it should work\n");
-			dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-			printf("memory write on 0x20000000, it should work\n");
-			Memory_write(0x20000000, Memory_enum_size::u8, 0x12);
-
-			printf("memory read on 0x20000000, it should work\n");
-			dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-
-			printf("memory read on 0x1FFFFFFF, it should NOT work\n");
-			dat = (uint8*)Memory_read(0x1FFFFFFF, Memory_enum_size::u8);
-			if(dat != NULL) printf("val = %02x\n", *dat);
-
-
-
-			// 32bit memory access check
-
-			printf("memory write on 0x20000000, it should work\n");
-			Memory_write(0x20000000, Memory_enum_size::u32, 0xDEADBEEF);
-
-			printf("memory read on 0x20000000, it should work\n");
-			dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-			dat = (uint8*)Memory_read(0x20000001, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-			dat = (uint8*)Memory_read(0x20000002, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-			dat = (uint8*)Memory_read(0x20000003, Memory_enum_size::u8);
-			if (dat != NULL) printf("val = %02x\n", *dat);
-
-			// memory write supported upto 4 byte writes in little-endian. only 1 byte supported for read.
-
-		}
-	}
 
 }
 
