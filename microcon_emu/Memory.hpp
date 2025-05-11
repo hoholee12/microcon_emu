@@ -29,6 +29,7 @@ struct Memory_map_elem {
 	uint32 base;
 	uint32 size;
 	uint32 attrib;
+	uint32 nd_attrib;
 	uint8* data;	// malloc memory (uint8 for byte access)
 	// for quicker access to next map
 	struct Memory_map_elem* next;
@@ -61,6 +62,16 @@ extern uint32 Memory_var_endianness;	// 0: big(0x1234 -> 0:0x12, 1:0x34), 1: lit
 #define MEMORY_ATTRIB_U_ALL 0x1F
 #define MEMORY_ATTRIB_S_ALL 0x3E0
 #define MEMORY_ATTRIB_ALL 0x3FF
+
+/* critical - deterministic
+* noncritical - non-deterministic (behavior can change due to status - but not disrupt the output) */
+#define MEMORY_ATTRIB_U_CRITICAL 0x7
+#define MEMORY_ATTRIB_U_NONCRITICAL 0x18
+#define MEMORY_ATTRIB_S_CRITICAL 0xE0
+#define MEMORY_ATTRIB_S_NONCRITICAL 0x300
+#define MEMORY_ATTRIB_CRITICAL 0xE7
+#define MEMORY_ATTRIB_NONCRITICAL 0x318
+
 enum Memory_access_status_enum {none = 0, section_err, attribute_err, reserved};
 // value is 0 by default
 // if value is 1, no section found

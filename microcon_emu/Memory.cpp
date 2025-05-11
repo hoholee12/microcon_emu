@@ -14,7 +14,8 @@ void Memory_addMap(uint32 base, uint32 size, uint32 attrib) {
 		Memory_var_arr[Memory_var_arrlen].next = NULL;
 		Memory_var_arr[Memory_var_arrlen].size = size;
 		Memory_var_arr[Memory_var_arrlen].base = base;
-		Memory_var_arr[Memory_var_arrlen].attrib = attrib;
+		Memory_var_arr[Memory_var_arrlen].attrib = attrib & MEMORY_ATTRIB_CRITICAL;
+		Memory_var_arr[Memory_var_arrlen].nd_attrib = attrib & MEMORY_ATTRIB_NONCRITICAL;
 		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
 	
 	}
@@ -29,7 +30,8 @@ void Memory_addMap(uint32 base, uint32 size, uint32 attrib) {
 		Memory_var_arr[Memory_var_arrlen - 1].next = &Memory_var_arr[Memory_var_arrlen];
 		Memory_var_arr[Memory_var_arrlen].size = size;
 		Memory_var_arr[Memory_var_arrlen].base = base;
-		Memory_var_arr[Memory_var_arrlen].attrib = attrib;
+		Memory_var_arr[Memory_var_arrlen].attrib = attrib & MEMORY_ATTRIB_CRITICAL;
+		Memory_var_arr[Memory_var_arrlen].nd_attrib = attrib & MEMORY_ATTRIB_NONCRITICAL;
 		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
 	
 	}
@@ -101,10 +103,16 @@ void* Memory_read(uint32 addr, Memory_enum_size sizetype, uint32 attrib) {
 	}
 
 	// get memory section attribute
-	if ((thismap->attrib & attrib) == 0) {
+	if ((thismap->attrib & (attrib & MEMORY_ATTRIB_CRITICAL)) == 0) {
 		// fail if attribute error
 		Memory_var_access_err = Memory_access_status_enum::attribute_err;
 		return NULL;
+	}
+
+	// get memory section nd_attrib
+	if ((thismap->nd_attrib & (attrib & MEMORY_ATTRIB_NONCRITICAL)) == 0) {
+		// do nothing
+		// TODO: do something... like simulate a delay or order of output
 	}
 
 	uint32 translated_addr = addr - thismap->base;
@@ -148,10 +156,16 @@ void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data, uint32 at
 	}
 
 	// get memory section attribute
-	if ((thismap->attrib & attrib) == 0) {
+	if ((thismap->attrib & (attrib & MEMORY_ATTRIB_CRITICAL)) == 0) {
 		// fail if attribute error
 		Memory_var_access_err = Memory_access_status_enum::attribute_err;
 		return;
+	}
+
+	// get memory section nd_attrib
+	if ((thismap->nd_attrib & (attrib & MEMORY_ATTRIB_NONCRITICAL)) == 0) {
+		// do nothing
+		// TODO: do something... like simulate a delay or order of output
 	}
 
 	uint32 translated_addr = addr - thismap->base;
