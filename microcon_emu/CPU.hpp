@@ -200,8 +200,8 @@ typedef enum CPU_op_enum {
     SDIV_reg,   // SDIV Rd, Rn, Rm (ARMv7-M division)
 
     // --- Stack operations ---
-    PUSH,       // PUSH {¡¦}
-    POP,        // POP {¡¦}
+    PUSH,
+    POP,
 
     // --- Branches & Control ---
     B_cond,     // B<cond> label
