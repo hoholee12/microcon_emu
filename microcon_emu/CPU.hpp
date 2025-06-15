@@ -106,33 +106,118 @@ struct CPU_struct_reg {
 extern uint32 CPU_op_vect[0xFF]; // 8 bits
 extern uint32 CPU_op_vect_ext[0xFF]; // extend to 16 bits
 
-enum CPU_op_enum {
-	NOP,
-	/* shift op */
-	LSL,
-	LSR,
-	ASR,
-	ROR,
-	RRX,
+typedef enum CPU_op_enum {
+    NOP,
 
-	/* add op */
-	ADC_imm,
-	ADC_reg,
-	ADD_imm,
-	ADD_reg,
-	ADD_sp_imm,
-	ADD_sp_reg,
+    // --- Shift operations ---
+    LSL_imm,    // logical shift left by immediate
+    LSL_reg,    // logical shift left by register
+    LSR_imm,    // logical shift right by immediate
+    LSR_reg,    // logical shift right by register
+    ASR_imm,    // arithmetic shift right by immediate
+    ASR_reg,    // arithmetic shift right by register
+    ROR_imm,    // rotate right by immediate
+    ROR_reg,    // rotate right by register
+    RRX,        // rotate right with extend
 
-	/* TODO... */
+    // --- Move / Negate ---
+    MOV_imm,    // MOV Rd, #imm
+    MOV_reg,    // MOV Rd, Rm
+    MOV_SP_imm, // MOV Rd, [SP, #imm] (alias)
+    MOV_SP_reg, // MOV Rd, [SP, Rm]
+    MVN_imm,    // MVN Rd, #imm
+    MVN_reg,    // MVN Rd, Rm
 
+    // --- Add / Sub / ADC / SBC ---
+    ADC_imm,    // ADC Rd, Rn, #imm
+    ADC_reg,    // ADC Rd, Rn, Rm
+    ADD_imm,    // ADD Rd, Rn, #imm
+    ADD_reg,    // ADD Rd, Rn, Rm
+    ADD_SP_imm, // ADD SP, SP, #imm
+    ADD_SP_reg, // ADD SP, SP, Rm
+    SBC_imm,    // SBC Rd, Rn, #imm
+    SBC_reg,    // SBC Rd, Rn, Rm
+    SUB_imm,    // SUB Rd, Rn, #imm
+    SUB_reg,    // SUB Rd, Rn, Rm
+    SUB_SP_imm, // SUB SP, SP, #imm
+    SUB_SP_reg, // SUB SP, SP, Rm
 
+    // --- Logical operations ---
+    AND_imm,    // AND Rd, Rn, #imm
+    AND_reg,    // AND Rd, Rn, Rm
+    ORR_imm,    // ORR Rd, Rn, #imm
+    ORR_reg,    // ORR Rd, Rn, Rm
+    EOR_imm,    // EOR Rd, Rn, #imm
+    EOR_reg,    // EOR Rd, Rn, Rm
+    BIC_imm,    // BIC Rd, Rn, #imm
+    BIC_reg,    // BIC Rd, Rn, Rm
 
+    // --- Compare & Test ---
+    CMP_imm,    // CMP Rn, #imm
+    CMP_reg,    // CMP Rn, Rm
+    CMN_imm,    // CMN Rn, #imm
+    CMN_reg,    // CMN Rn, Rm
+    TST_imm,    // TST Rn, #imm
+    TST_reg,    // TST Rn, Rm
 
+    // --- Load / Store (Word) ---
+    LDR_imm,    // LDR Rt, [Rn, #imm]
+    LDR_reg,    // LDR Rt, [Rn, Rm]
+    LDR_SP_imm, // LDR Rt, [SP, #imm]
+    LDR_SP_reg, // LDR Rt, [SP, Rm]
+    LDR_literal,// LDR Rt, =label
 
+    STR_imm,    // STR Rt, [Rn, #imm]
+    STR_reg,    // STR Rt, [Rn, Rm]
+    STR_SP_imm, // STR Rt, [SP, #imm]
+    STR_SP_reg, // STR Rt, [SP, Rm]
 
+    // --- Load / Store (Byte / Half / Dual) ---
+    LDRB_imm,   // LDRB Rt, [Rn, #imm]
+    LDRB_reg,   // LDRB Rt, [Rn, Rm]
+    STRB_imm,   // STRB Rt, [Rn, #imm]
+    STRB_reg,   // STRB Rt, [Rn, Rm]
 
+    LDRH_imm,   // LDRH Rt, [Rn, #imm]
+    LDRH_reg,   // LDRH Rt, [Rn, Rm]
+    STRH_imm,   // STRH Rt, [Rn, #imm]
+    STRH_reg,   // STRH Rt, [Rn, Rm]
 
-};
+    LDRD_imm,   // LDRD Rt, [Rn, #imm]
+    LDRD_reg,   // LDRD Rt, [Rn, Rm]
+    STRD_imm,   // STRD Rt, [Rn, #imm]
+    STRD_reg,   // STRD Rt, [Rn, Rm]
+
+    // --- Multiply & Divide ---
+    MUL_reg,    // MUL Rd, Rm, Rs
+    MLA_reg,    // MLA Rd, Rm, Rs, Ra
+    MLS_reg,    // MLS Rd, Rm, Rs, Ra (ARMv7-M optional)
+    UMULL_reg,  // UMULL RdLo, RdHi, Rm, Rs
+    UMLAL_reg,  // UMLAL RdLo, RdHi, Rm, Rs
+    SMULL_reg,  // SMULL RdLo, RdHi, Rm, Rs
+    SMLAL_reg,  // SMLAL RdLo, RdHi, Rm, Rs
+    UDIV_reg,   // UDIV Rd, Rn, Rm (ARMv7-M division)
+    SDIV_reg,   // SDIV Rd, Rn, Rm (ARMv7-M division)
+
+    // --- Stack operations ---
+    PUSH,       // PUSH {¡¦}
+    POP,        // POP {¡¦}
+
+    // --- Branches & Control ---
+    B_cond,     // B<cond> label
+    B_uncond,   // B label
+    BL,         // BL label
+    BX,         // BX Rm
+    BLX,        // BLX Rm
+
+    // --- System / Barrier / Exception ---
+    SVC,        // SVC #imm
+    BKPT,       // BKPT #imm
+    DMB,        // Data Memory Barrier
+    DSB,        // Data Synchronization Barrier
+    ISB,        // Instruction Synchronization Barrier
+
+} CPU_op_enum;
 
 extern struct CPU_struct_reg CPU_var_reg;
 
