@@ -103,120 +103,282 @@ struct CPU_struct_reg {
 
 };
 
-extern uint32 CPU_op_vect[0xFF]; // 8 bits
-extern uint32 CPU_op_vect_ext[0xFF]; // extend to 16 bits
+typedef struct {
+    void (*func)(uint32 instr, CPU_struct_reg* reg);
+} CPU_op_vect_ext_t;
 
+typedef struct {
+    CPU_op_vect_ext_t* op_ext;
+} CPU_op_vect_t;
+
+extern CPU_op_vect_t* CPU_op_vect[0xFFFF]; // 16 bits
+
+/* extracted from DDI0403Ee_arm_v7m_ref chapter 7.7 : instructions in alphabetical order */
 typedef enum CPU_op_enum {
-    NOP,
-
-    // --- Shift operations ---
-    LSL_imm,    // logical shift left by immediate
-    LSL_reg,    // logical shift left by register
-    LSR_imm,    // logical shift right by immediate
-    LSR_reg,    // logical shift right by register
-    ASR_imm,    // arithmetic shift right by immediate
-    ASR_reg,    // arithmetic shift right by register
-    ROR_imm,    // rotate right by immediate
-    ROR_reg,    // rotate right by register
-    RRX,        // rotate right with extend
-
-    // --- Move / Negate ---
-    MOV_imm,    // MOV Rd, #imm
-    MOV_reg,    // MOV Rd, Rm
-    MOV_SP_imm, // MOV Rd, [SP, #imm] (alias)
-    MOV_SP_reg, // MOV Rd, [SP, Rm]
-    MVN_imm,    // MVN Rd, #imm
-    MVN_reg,    // MVN Rd, Rm
-
-    // --- Add / Sub / ADC / SBC ---
-    ADC_imm,    // ADC Rd, Rn, #imm
-    ADC_reg,    // ADC Rd, Rn, Rm
-    ADD_imm,    // ADD Rd, Rn, #imm
-    ADD_reg,    // ADD Rd, Rn, Rm
-    ADD_SP_imm, // ADD SP, SP, #imm
-    ADD_SP_reg, // ADD SP, SP, Rm
-    SBC_imm,    // SBC Rd, Rn, #imm
-    SBC_reg,    // SBC Rd, Rn, Rm
-    SUB_imm,    // SUB Rd, Rn, #imm
-    SUB_reg,    // SUB Rd, Rn, Rm
-    SUB_SP_imm, // SUB SP, SP, #imm
-    SUB_SP_reg, // SUB SP, SP, Rm
-
-    // --- Logical operations ---
-    AND_imm,    // AND Rd, Rn, #imm
-    AND_reg,    // AND Rd, Rn, Rm
-    ORR_imm,    // ORR Rd, Rn, #imm
-    ORR_reg,    // ORR Rd, Rn, Rm
-    EOR_imm,    // EOR Rd, Rn, #imm
-    EOR_reg,    // EOR Rd, Rn, Rm
-    BIC_imm,    // BIC Rd, Rn, #imm
-    BIC_reg,    // BIC Rd, Rn, Rm
-
-    // --- Compare & Test ---
-    CMP_imm,    // CMP Rn, #imm
-    CMP_reg,    // CMP Rn, Rm
-    CMN_imm,    // CMN Rn, #imm
-    CMN_reg,    // CMN Rn, Rm
-    TST_imm,    // TST Rn, #imm
-    TST_reg,    // TST Rn, Rm
-
-    // --- Load / Store (Word) ---
-    LDR_imm,    // LDR Rt, [Rn, #imm]
-    LDR_reg,    // LDR Rt, [Rn, Rm]
-    LDR_SP_imm, // LDR Rt, [SP, #imm]
-    LDR_SP_reg, // LDR Rt, [SP, Rm]
-    LDR_literal,// LDR Rt, =label
-
-    STR_imm,    // STR Rt, [Rn, #imm]
-    STR_reg,    // STR Rt, [Rn, Rm]
-    STR_SP_imm, // STR Rt, [SP, #imm]
-    STR_SP_reg, // STR Rt, [SP, Rm]
-
-    // --- Load / Store (Byte / Half / Dual) ---
-    LDRB_imm,   // LDRB Rt, [Rn, #imm]
-    LDRB_reg,   // LDRB Rt, [Rn, Rm]
-    STRB_imm,   // STRB Rt, [Rn, #imm]
-    STRB_reg,   // STRB Rt, [Rn, Rm]
-
-    LDRH_imm,   // LDRH Rt, [Rn, #imm]
-    LDRH_reg,   // LDRH Rt, [Rn, Rm]
-    STRH_imm,   // STRH Rt, [Rn, #imm]
-    STRH_reg,   // STRH Rt, [Rn, Rm]
-
-    LDRD_imm,   // LDRD Rt, [Rn, #imm]
-    LDRD_reg,   // LDRD Rt, [Rn, Rm]
-    STRD_imm,   // STRD Rt, [Rn, #imm]
-    STRD_reg,   // STRD Rt, [Rn, Rm]
-
-    // --- Multiply & Divide ---
-    MUL_reg,    // MUL Rd, Rm, Rs
-    MLA_reg,    // MLA Rd, Rm, Rs, Ra
-    MLS_reg,    // MLS Rd, Rm, Rs, Ra (ARMv7-M optional)
-    UMULL_reg,  // UMULL RdLo, RdHi, Rm, Rs
-    UMLAL_reg,  // UMLAL RdLo, RdHi, Rm, Rs
-    SMULL_reg,  // SMULL RdLo, RdHi, Rm, Rs
-    SMLAL_reg,  // SMLAL RdLo, RdHi, Rm, Rs
-    UDIV_reg,   // UDIV Rd, Rn, Rm (ARMv7-M division)
-    SDIV_reg,   // SDIV Rd, Rn, Rm (ARMv7-M division)
-
-    // --- Stack operations ---
-    PUSH,
-    POP,
-
-    // --- Branches & Control ---
-    B_cond,     // B<cond> label
-    B_uncond,   // B label
-    BL,         // BL label
-    BX,         // BX Rm
-    BLX,        // BLX Rm
-
-    // --- System / Barrier / Exception ---
-    SVC,        // SVC #imm
-    BKPT,       // BKPT #imm
-    DMB,        // Data Memory Barrier
-    DSB,        // Data Synchronization Barrier
-    ISB,        // Instruction Synchronization Barrier
-
+    ADC_IMMEDIATE, /* ADC (immediate) */
+    ADC_REGISTER, /* ADC (register) */
+    ADD_IMMEDIATE, /* ADD (immediate) */
+    ADD_REGISTER, /* ADD (register) */
+    ADD_SP_PLUS_IMMEDIATE, /* ADD (SP plus immediate) */
+    ADD_SP_PLUS_REGISTER, /* ADD (SP plus register) */
+    ADR, /* ADR */
+    AND_IMMEDIATE, /* AND (immediate) */
+    AND_REGISTER, /* AND (register) */
+    ASR_IMMEDIATE, /* ASR (immediate) */
+    ASR_REGISTER, /* ASR (register) */
+    B, /* B */
+    BFC, /* BFC */
+    BFI, /* BFI */
+    BIC_IMMEDIATE, /* BIC (immediate) */
+    BIC_REGISTER, /* BIC (register) */
+    BKPT, /* BKPT */
+    BL, /* BL */
+    BLX_REGISTER, /* BLX (register) */
+    BX, /* BX */
+    CBNZ_CBZ, /* CBNZ, CBZ */
+    CDP_CDP2, /* CDP, CDP2 */
+    CLREX, /* CLREX */
+    CLZ, /* CLZ */
+    CMN_IMMEDIATE, /* CMN (immediate) */
+    CMN_REGISTER, /* CMN (register) */
+    CMP_IMMEDIATE, /* CMP (immediate) */
+    CMP_REGISTER, /* CMP (register) */
+    CPS, /* CPS */
+    CPY, /* CPY */
+    CSDB, /* CSDB */
+    DBG, /* DBG */
+    DMB, /* DMB */
+    DSB, /* DSB */
+    EOR_IMMEDIATE, /* EOR (immediate) */
+    EOR_REGISTER, /* EOR (register) */
+    ISB, /* ISB */
+    IT, /* IT */
+    LDC_LDC2_IMMEDIATE, /* LDC, LDC2 (immediate) */
+    LDC_LDC2_LITERAL, /* LDC, LDC2 (literal) */
+    LDM_LDMIA_LDMFD, /* LDM, LDMIA, LDMFD */
+    LDMDB_LDMEA, /* LDMDB, LDMEA */
+    LDR_IMMEDIATE, /* LDR (immediate) */
+    LDR_LITERAL, /* LDR (literal) */
+    LDR_REGISTER, /* LDR (register) */
+    LDRB_IMMEDIATE, /* LDRB (immediate) */
+    LDRB_LITERAL, /* LDRB (literal) */
+    LDRB_REGISTER, /* LDRB (register) */
+    LDRBT, /* LDRBT */
+    LDRD_IMMEDIATE, /* LDRD (immediate) */
+    LDRD_LITERAL, /* LDRD (literal) */
+    LDREX, /* LDREX */
+    LDREXB, /* LDREXB */
+    LDREXH, /* LDREXH */
+    LDRH_IMMEDIATE, /* LDRH (immediate) */
+    LDRH_LITERAL, /* LDRH (literal) */
+    LDRH_REGISTER, /* LDRH (register) */
+    LDRHT, /* LDRHT */
+    LDRSB_IMMEDIATE, /* LDRSB (immediate) */
+    LDRSB_LITERAL, /* LDRSB (literal) */
+    LDRSB_REGISTER, /* LDRSB (register) */
+    LDRSBT, /* LDRSBT */
+    LDRSH_IMMEDIATE, /* LDRSH (immediate) */
+    LDRSH_LITERAL, /* LDRSH (literal) */
+    LDRSH_REGISTER, /* LDRSH (register) */
+    LDRSHT, /* LDRSHT */
+    LDRT, /* LDRT */
+    LSL_IMMEDIATE, /* LSL (immediate) */
+    LSL_REGISTER, /* LSL (register) */
+    LSR_IMMEDIATE, /* LSR (immediate) */
+    LSR_REGISTER, /* LSR (register) */
+    MCR_MCR2, /* MCR, MCR2 */
+    MCRR_MCRR2, /* MCRR, MCRR2 */
+    MLA, /* MLA */
+    MLS, /* MLS */
+    MOV_IMMEDIATE, /* MOV (immediate) */
+    MOV_REGISTER, /* MOV (register) */
+    MOV_SHIFTED_REGISTER, /* MOV (shifted register) */
+    MOVT, /* MOVT */
+    MRC_MRC2, /* MRC, MRC2 */
+    MRRC_MRRC2, /* MRRC, MRRC2 */
+    MRS, /* MRS */
+    MSR, /* MSR */
+    MUL, /* MUL */
+    MVN_IMMEDIATE, /* MVN (immediate) */
+    MVN_REGISTER, /* MVN (register) */
+    NEG, /* NEG */
+    NOP, /* NOP */
+    ORN_IMMEDIATE, /* ORN (immediate) */
+    ORN_REGISTER, /* ORN (register) */
+    ORR_IMMEDIATE, /* ORR (immediate) */
+    ORR_REGISTER, /* ORR (register) */
+    PKHBT_PKHTB, /* PKHBT, PKHTB */
+    PLD_IMMEDIATE, /* PLD (immediate) */
+    PLD_LITERAL, /* PLD (literal) */
+    PLD_REGISTER, /* PLD (register) */
+    PLI_IMMEDIATE_LITERAL, /* PLI (immediate, literal) */
+    PLI_REGISTER, /* PLI (register) */
+    POP, /* POP */
+    PSSBB, /* PSSBB */
+    PUSH, /* PUSH */
+    QADD, /* QADD */
+    QADD16, /* QADD16 */
+    QADD8, /* QADD8 */
+    QASX, /* QASX */
+    QDADD, /* QDADD */
+    QDSUB, /* QDSUB */
+    QSAX, /* QSAX */
+    QSUB, /* QSUB */
+    QSUB16, /* QSUB16 */
+    QSUB8, /* QSUB8 */
+    RBIT, /* RBIT */
+    REV, /* REV */
+    REV16, /* REV16 */
+    REVSH, /* REVSH */
+    ROR_IMMEDIATE, /* ROR (immediate) */
+    ROR_REGISTER, /* ROR (register) */
+    RRX, /* RRX */
+    RSB_IMMEDIATE, /* RSB (immediate) */
+    RSB_REGISTER, /* RSB (register) */
+    SADD16, /* SADD16 */
+    SADD8, /* SADD8 */
+    SASX, /* SASX */
+    SBC_IMMEDIATE, /* SBC (immediate) */
+    SBC_REGISTER, /* SBC (register) */
+    SBFX, /* SBFX */
+    SDIV, /* SDIV */
+    SEL, /* SEL */
+    SEV, /* SEV */
+    SHADD16, /* SHADD16 */
+    SHADD8, /* SHADD8 */
+    SHASX, /* SHASX */
+    SHSAX, /* SHSAX */
+    SHSUB16, /* SHSUB16 */
+    SHSUB8, /* SHSUB8 */
+    SMLABB_SMLABT_SMLATB_SMLATT, /* SMLABB, SMLABT, SMLATB, SMLATT */
+    SMLAD_SMLADX, /* SMLAD, SMLADX */
+    SMLAL, /* SMLAL */
+    SMLALBB_SMLALBT_SMLALTB_SMLALTT, /* SMLALBB, SMLALBT, SMLALTB, SMLALTT */
+    SMLALD_SMLALDX, /* SMLALD, SMLALDX */
+    SMLAWB_SMLAWT, /* SMLAWB, SMLAWT */
+    SMLSD_SMLSDX, /* SMLSD, SMLSDX */
+    SMLSLD_SMLSLDX, /* SMLSLD, SMLSLDX */
+    SMMLA_SMMLAR, /* SMMLA, SMMLAR */
+    SMMLS_SMMLSR, /* SMMLS, SMMLSR */
+    SMMUL_SMMULR, /* SMMUL, SMMULR */
+    SMUAD_SMUADX, /* SMUAD, SMUADX */
+    SMULBB_SMULBT_SMULTB_SMULTT, /* SMULBB, SMULBT, SMULTB, SMULTT */
+    SMULL, /* SMULL */
+    SMULWB_SMULWT, /* SMULWB, SMULWT */
+    SMUSD_SMUSDX, /* SMUSD, SMUSDX */
+    SSAT, /* SSAT */
+    SSAT16, /* SSAT16 */
+    SSAX, /* SSAX */
+    SSBB, /* SSBB */
+    SSUB16, /* SSUB16 */
+    SSUB8, /* SSUB8 */
+    STC_STC2, /* STC, STC2 */
+    STM_STMIA_STMEA, /* STM, STMIA, STMEA */
+    STMDB_STMFD, /* STMDB, STMFD */
+    STR_IMMEDIATE, /* STR (immediate) */
+    STR_REGISTER, /* STR (register) */
+    STRB_IMMEDIATE, /* STRB (immediate) */
+    STRB_REGISTER, /* STRB (register) */
+    STRBT, /* STRBT */
+    STRD_IMMEDIATE, /* STRD (immediate) */
+    STREX, /* STREX */
+    STREXB, /* STREXB */
+    STREXH, /* STREXH */
+    STRH_IMMEDIATE, /* STRH (immediate) */
+    STRH_REGISTER, /* STRH (register) */
+    STRHT, /* STRHT */
+    STRT, /* STRT */
+    SUB_IMMEDIATE, /* SUB (immediate) */
+    SUB_REGISTER, /* SUB (register) */
+    SUB_SP_MINUS_IMMEDIATE, /* SUB (SP minus immediate) */
+    SUB_SP_MINUS_REGISTER, /* SUB (SP minus register) */
+    SVC, /* SVC */
+    SXTAB, /* SXTAB */
+    SXTAB16, /* SXTAB16 */
+    SXTAH, /* SXTAH */
+    SXTB, /* SXTB */
+    SXTB16, /* SXTB16 */
+    SXTH, /* SXTH */
+    TBB_TBH, /* TBB, TBH */
+    TEQ_IMMEDIATE, /* TEQ (immediate) */
+    TEQ_REGISTER, /* TEQ (register) */
+    TST_IMMEDIATE, /* TST (immediate) */
+    TST_REGISTER, /* TST (register) */
+    UADD16, /* UADD16 */
+    UADD8, /* UADD8 */
+    UASX, /* UASX */
+    UBFX, /* UBFX */
+    UDF, /* UDF */
+    UDIV, /* UDIV */
+    UHADD16, /* UHADD16 */
+    UHADD8, /* UHADD8 */
+    UHASX, /* UHASX */
+    UHSAX, /* UHSAX */
+    UHSUB16, /* UHSUB16 */
+    UHSUB8, /* UHSUB8 */
+    UMAAL, /* UMAAL */
+    UMLAL, /* UMLAL */
+    UMULL, /* UMULL */
+    UQADD16, /* UQADD16 */
+    UQADD8, /* UQADD8 */
+    UQASX, /* UQASX */
+    UQSAX, /* UQSAX */
+    UQSUB16, /* UQSUB16 */
+    UQSUB8, /* UQSUB8 */
+    USAD8, /* USAD8 */
+    USADA8, /* USADA8 */
+    USAT, /* USAT */
+    USAT16, /* USAT16 */
+    USAX, /* USAX */
+    USUB16, /* USUB16 */
+    USUB8, /* USUB8 */
+    UXTAB, /* UXTAB */
+    UXTAB16, /* UXTAB16 */
+    UXTAH, /* UXTAH */
+    UXTB, /* UXTB */
+    UXTB16, /* UXTB16 */
+    UXTH, /* UXTH */
+    VABS, /* VABS */
+    VADD, /* VADD */
+    VCMP_VCMPE, /* VCMP, VCMPE */
+    VCVTA_VCVTN_VCVTP_AND_VCVTM, /* VCVTA, VCVTN, VCVTP, and VCVTM */
+    VCVT_VCVTR_BETWEEN_FLOATING_POINT_AND_INTEGER, /* VCVT, VCVTR (between floating-point and integer) */
+    VCVT_BETWEEN_FLOATING_POINT_AND_FIXED_POINT, /* VCVT (between floating-point and fixed-point) */
+    VCVT_BETWEEN_DOUBLE_PRECISION_AND_SINGLE_PRECISION, /* VCVT (between double-precision and single-precision) */
+    VCVTB_VCVTT, /* VCVTB, VCVTT */
+    VDIV, /* VDIV */
+    VFMA_VFMS, /* VFMA, VFMS */
+    VFNMA_VFNMS, /* VFNMA, VFNMS */
+    VLDM, /* VLDM */
+    VLDR, /* VLDR */
+    VMAXNM_VMINNM, /* VMAXNM, VMINNM */
+    VMLA_VMLS, /* VMLA, VMLS */
+    VMOV_IMMEDIATE, /* VMOV (immediate) */
+    VMOV_REGISTER, /* VMOV (register) */
+    VMOV_ARM_CORE_REGISTER_TO_SCALAR, /* VMOV (Arm core register to scalar) */
+    VMOV_SCALAR_TO_ARM_CORE_REGISTER, /* VMOV (scalar to Arm core register) */
+    VMOV_BETWEEN_ARM_CORE_REGISTER_AND_SINGLE_PRECISION_REGISTER, /* VMOV (between Arm core register and single-precision register) */
+    VMOV_BETWEEN_TWO_ARM_CORE_REGISTERS_AND_TWO_SINGLE_PRECISION_REGISTERS, /* VMOV (between two Arm core registers and two single-precision registers) */
+    VMOV_BETWEEN_TWO_ARM_CORE_REGISTERS_AND_A_DOUBLEWORD_REGISTER, /* VMOV (between two Arm core registers and a doubleword register) */
+    VMRS, /* VMRS */
+    VMSR, /* VMSR */
+    VMUL, /* VMUL */
+    VNEG, /* VNEG */
+    VNMLA_VNMLS_VNMUL, /* VNMLA, VNMLS, VNMUL */
+    VPOP, /* VPOP */
+    VPUSH, /* VPUSH */
+    VRINTA_VRINTN_VRINTP_AND_VRINTM, /* VRINTA, VRINTN, VRINTP, and VRINTM */
+    VRINTX, /* VRINTX */
+    VRINTZ_VRINTR, /* VRINTZ, VRINTR */
+    VSEL, /* VSEL */
+    VSQRT, /* VSQRT */
+    VSTM, /* VSTM */
+    VSTR, /* VSTR */
+    VSUB, /* VSUB */
+    WFE, /* WFE */
+    WFI, /* WFI */
+    YIELD, /* YIELD */
+    NUMBER_OF_CPU_OPCODES
 } CPU_op_enum;
 
 extern struct CPU_struct_reg CPU_var_reg;

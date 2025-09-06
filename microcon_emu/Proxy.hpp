@@ -5,7 +5,8 @@
 #include <profileapi.h>	// for QueryPerformanceCounter
 #include <setjmp.h>
 #include <intrin.h>
-
+#include <assert.h>
+#define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
 
 // type defines
 
@@ -28,3 +29,9 @@ extern uint32 Clock_gettime_msec();
 extern void Clock_sleep(uint32 msec);
 
 #define NULL 0
+
+
+
+#define EMUPOOL_BUFFER_SIZE 0x100000	// 1MB buffer
+// one bit per 1KB block
+extern uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];

@@ -398,20 +398,17 @@ void Clock_add(uint32 index, Clock_struct* clock_obj)
 {
 	// sanity check
 	if (index < 0 && index >= CLOCK_MAX_SCHEDULE_SIZE) {
-		printf("clock obj index out of range!\n");
-		return;
+		m_assert(false, "clock obj index out of range!\n");
 	}
 
 	if ((index == 0 && clock_obj->clock_type != Clock_type_enum::master)
 	|| (index != 0 && clock_obj->clock_type == Clock_type_enum::master)) {
-		printf("only master obj can be inserted to index 0\n");
-		return;
+		m_assert(false, "only master obj can be inserted to index 0\n");
 	}
 
 
 	if ((Clock_arr_map >> index) & 0x1) {
-		printf("index already taken\n");
-		return;
+		m_assert(false, "index already taken\n");
 	}
 	// end sanity check
 
@@ -425,14 +422,12 @@ void Clock_replace(uint32 index, Clock_struct* clock_obj)
 {
 	// sanity check
 	if (index < 0 && index >= CLOCK_MAX_SCHEDULE_SIZE) {
-		printf("clock obj index out of range!\n");
-		return;
+		m_assert(false, "clock obj index out of range!\n");
 	}
 
 	if ((index == 0 && clock_obj->clock_type != Clock_type_enum::master)
 		|| (index != 0 && clock_obj->clock_type == Clock_type_enum::master)) {
-		printf("only master obj can be inserted to index 0\n");
-		return;
+		m_assert(false, "only master obj can be inserted to index 0\n");
 	}
 
 	// end sanity check
@@ -473,8 +468,7 @@ uint32 Clock_ready_getmaxvalperobj(uint32 masterclock, uint32 startindex) {
 
 	// error if end is not master
 	if (Clock_arr[idx].clock_type != Clock_type_enum::master) {
-		printf("could not find master clock. check if your clock obj links are properly setup\n");
-		return 0;
+		m_assert(false, "could not find master clock. check if your clock obj links are properly setup\n");
 	}
 
 	return masterclock * maxval / countermax;	// percentage
