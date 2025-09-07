@@ -16,7 +16,7 @@
  * [2] = 0x2003 (next block's starting address; 0x2000 + 3 for this block's header)
  * [3] = 0xXXXX (first byte of this block)
  * ...
- * [0x2002] = 0xXXXX (last byte of this block; not 0x1FFF because we need to store the header of the block which is + 2)
+ * [0x2002] = 0xXXXX (last byte of this block)
  * - second block
  * [0x2003] = 0xAAAAAAAA
  * [0x2004] = 0x0 (previous block's starting address)
@@ -39,55 +39,79 @@
  *  - that's it.
  * 
  * when allocating freed blocks, we can check for the free blocks by checking the [1] of the next block and [0] of the current block.
- * if the difference is not equal to the size of the block + 2, it means there is a free block in between.
+ * allocation always goes left -> right. it does not go reverse. we can use this fact to indicate an empty gap.
+ * when we dealloc block B:
+ * block A -> block B -> block C
+ * block A -> update to point to block C
+ * block C -> do not update.(points to nonexistant block B)
+ * when checking for gap, we can use this to calculate gap size, and insert if possible.
  */
 
 uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
 void* Proxy_allocate_memory(uint32 size) {
 	uint32 index = 0;
-	uint32 blocksize = size / 4 + 2;	// size in 4byte + 2 for header
+	uint32 blocksize = size / 4 + 3;	// size in 4byte + 3 for header
 
-	uint32 prev_header_prevblock_startaddr = 0;
+	uint32 curr_header_prevblock_startaddr = 0;
+    uint32 curr_header_nextblock_startaddr = 0;
+    uint32 prev_header_prevblock_startaddr = 0;
 	uint32 prev_header_nextblock_startaddr = 0;
+    uint32 next_header_prevblock_startaddr = 0;
+    uint32 next_header_nextblock_startaddr = 0;
 
+    // very first allocation
+    if (microcon_emupool[0] == 0){
+        microcon_emupool[0] = 0xAAAAAAAA; // magic number
+        microcon_emupool[1] = 0; // previous block is null
+
+        microcon_emupool[2] = blocksize; // next block starts after this block
+        microcon_emupool[blocksize] = 0xAAAAAAAA; // magic number for next block
+        microcon_emupool[blocksize + 1] = 0; // next block's previous pointer is null
+
+        return &microcon_emupool[3];
+    }
+
+    // we have at least one block here
 	while(1){
-		if (index + blocksize >= EMUPOOL_BUFFER_SIZE) {
+        if (microcon_emupool[index] != 0xAAAAAAAA){
+            // memory corruption detected
+            m_assert(0, "memory corruption detected in emu pool");
+        }
+
+		if (index + blocksize + 3/* next (possible)block's header */ >= EMUPOOL_BUFFER_SIZE) {
 			// out of memory
 			m_assert(0, "out of memory in emu pool");
 		}
 
 		/* current block's header */
-		uint32 header_prevblock_startaddr = microcon_emupool[index];
-		uint32 header_nextblock_startaddr = microcon_emupool[index + 1];
+		curr_header_prevblock_startaddr = microcon_emupool[index + 1];
+		curr_header_nextblock_startaddr = microcon_emupool[index + 2];
+        next_header_prevblock_startaddr = microcon_emupool[curr_header_nextblock_startaddr + 1];
+        next_header_nextblock_startaddr = microcon_emupool[curr_header_nextblock_startaddr + 2];
 
-		/* if we are inserting a very first block */
-		if(header_prevblock_startaddr == 0 && header_nextblock_startaddr == 0){
-			/* set header */
-			microcon_emupool[index] = 0;	// previous block is null
-			microcon_emupool[index + 1] = blocksize;	// next block starts after this block
-
-			/* set next block's previous pointer */
-			microcon_emupool[blocksize + 1] = 0;	// next block's previous pointer points to this block (oom is already considered at the start of the loop)
-
-			/* return pointer to the first byte of this block */
-			return &microcon_emupool[index + 2];
-		}
-
-		/* we are inserting block normally. */
-
-		/* check if this block is first entry in pool */
-		else if (header_prevblock_startaddr == 0){
-
-		}
-
+        /* one iteration */
+        /* check if we are at the position of the last + 1 block */
+        if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr == 0x0){
+            /* start adding new block */
+            microcon_emupool[index + 2] = index + blocksize;
+            /* pre-init for next block */
+            microcon_emupool[index + blocksize] = 0xAAAAAAAA;
+            microcon_emupool[index + blocksize + 1] = index;
+            return &microcon_emupool[index + 3];
+        }
+        /* check if there is a free block between previous block and current block */
+        else if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr != 0x0){
+            /* when dealloc, the next block's prevaddr is not updated. we use that to figure out the size */
+            if ()
+        }
 
 
 		/* update index to the next block */
-		index = header_nextblock_startaddr;
+		index = curr_header_nextblock_startaddr;
 
 		/* update previous entry info */
-		prev_header_prevblock_startaddr = header_prevblock_startaddr;
-		prev_header_nextblock_startaddr = header_nextblock_startaddr;
+		prev_header_prevblock_startaddr = curr_header_prevblock_startaddr;
+		prev_header_nextblock_startaddr = curr_header_nextblock_startaddr;
 
 	}
 
