@@ -5,3 +5,5 @@
 #define EMUPOOL_BUFFER_SIZE 0x100000	// 1MB buffer
 // one bit per 1KB block
 extern uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
+extern void* EmuPool_allocate_memory(uint32 size);
+extern void EmuPool_free_memory(void* ptr);

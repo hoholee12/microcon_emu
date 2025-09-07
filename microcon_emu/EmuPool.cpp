@@ -7,7 +7,7 @@
  * if a middle block is freed, previous block's next pointer is set to the next of the freed block
  * freed block's next pointer is set to nullptr
  * ending address + 1 is the address to the first byte of previous block (needed to traverse backwards)
- * so: for the single block, [0] is a magic number, [1] is previous block's starting address, [2] is next block's starting address, [3] is first byte of this block.
+ * so for the single block, [0] is a magic number, [1] is previous block's starting address, [2] is next block's starting address, [3] is first byte of this block.
  *
  * for example: lets say we allocate 3 blocks of 0x2000 bytes each
  * - first block
@@ -48,7 +48,7 @@
  */
 
 uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
-void* Proxy_allocate_memory(uint32 size) {
+void* EmuPool_allocate_memory(uint32 size) {
 	uint32 index = 0;
 	uint32 blocksize = size / 4 + 3;	// size in 4byte + 3 for header
 
@@ -56,12 +56,10 @@ void* Proxy_allocate_memory(uint32 size) {
     uint32 curr_header_nextblock_startaddr = 0;
     uint32 prev_header_prevblock_startaddr = 0;
 	uint32 prev_header_nextblock_startaddr = 0;
-    uint32 next_header_prevblock_startaddr = 0;
-    uint32 next_header_nextblock_startaddr = 0;
 
     // very first allocation
     if (microcon_emupool[0] == 0){
-        microcon_emupool[0] = 0xAAAAAAAA; // magic number
+        microcon_emupool[0] = 0xAAAAAAAA; // very first magic number
         microcon_emupool[1] = 0; // previous block is null
 
         microcon_emupool[2] = blocksize; // next block starts after this block
@@ -86,8 +84,6 @@ void* Proxy_allocate_memory(uint32 size) {
 		/* current block's header */
 		curr_header_prevblock_startaddr = microcon_emupool[index + 1];
 		curr_header_nextblock_startaddr = microcon_emupool[index + 2];
-        next_header_prevblock_startaddr = microcon_emupool[curr_header_nextblock_startaddr + 1];
-        next_header_nextblock_startaddr = microcon_emupool[curr_header_nextblock_startaddr + 2];
 
         /* one iteration */
         /* check if we are at the position of the last + 1 block */
@@ -102,9 +98,20 @@ void* Proxy_allocate_memory(uint32 size) {
         /* check if there is a free block between previous block and current block */
         else if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr != 0x0){
             /* when dealloc, the next block's prevaddr is not updated. we use that to figure out the size */
-            if ()
+            /* we dont keep the block size itself so this is the only way to figure out the size of the missing block */
+            uint32 gap = curr_header_nextblock_startaddr /* next next block */ - microcon_emupool[curr_header_nextblock_startaddr + 1] /* end of valid block + 1 */;
+            if (gap > blocksize){
+                /* we have enough space to insert a new block here */
+                microcon_emupool[index + 2] = index + blocksize;
+                /* pre-init for next block */
+                microcon_emupool[index + blocksize] = 0xAAAAAAAA;
+                microcon_emupool[index + blocksize + 1] = prev_header_nextblock_startaddr;
+                /* update deleted entry */
+                microcon_emupool[curr_header_nextblock_startaddr + 1] += blocksize;
+                return &microcon_emupool[index + 3];
+            }
+            /* else, keep looking */
         }
-
 
 		/* update index to the next block */
 		index = curr_header_nextblock_startaddr;
@@ -118,6 +125,31 @@ void* Proxy_allocate_memory(uint32 size) {
 
 }
 
-void Proxy_free_memory(void* ptr){
+void EmuPool_free_memory(void* ptr){
+    /* pointer is 64 bit but index is much less than that so this is fine */
+    uint32 baseindex = (uint32*)ptr - (uint32*)&microcon_emupool[0];
+    if (microcon_emupool[baseindex - 3] != 0xAAAAAAAA){
+        // memory corruption detected
+        m_assert(0, "memory corruption detected in emu pool, or you are passing an invalid pointer");
+    }
+    uint32 prevblock_startaddr = microcon_emupool[baseindex - 2];
+    uint32 nextblock_startaddr = microcon_emupool[baseindex - 1];
+
+    if(baseindex == 3){
+        /* due to the nature of this structure, removing the first block means death. */
+        m_assert(0, "cannot free the first block in emu pool");
+    }
+
+    if (nextblock_startaddr != 0){
+        /* not the last block */
+        microcon_emupool[nextblock_startaddr + 1] = prevblock_startaddr;
+    }
+
+    microcon_emupool[prevblock_startaddr + 2] = nextblock_startaddr;
+    /* clear the header */
+    microcon_emupool[baseindex - 3] = 0;
+    microcon_emupool[baseindex - 2] = 0;
+    microcon_emupool[baseindex - 1] = 0;
+    /* we do not clear the data area. it is not needed */
 
 }
