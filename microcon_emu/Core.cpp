@@ -196,6 +196,7 @@ void Core_start(Thread_data* mydata) {
 	for(int i = -3; i < 100; i++){
 		printf("%d\n", hello[i]);
 	}
+	EmuPool_free_memory(hello);
 	exit(0);
 
 

@@ -2,8 +2,12 @@
 /* simple memory allocator for emulation structures
  * structure:
  * 1MB buffer
- * first 4byte is a magic number for corruption detection (0xAAAAAAAA)
- * second 4byte is a pointer of ending address + 3
+ * 
+ * - header -
+ * first 4byte: magic number for corruption detection (0xAAAAAAAA)
+ * second 4byte: previous block's starting address + 3 (starting address without the header)
+ * third 4byte: next block's starting address
+ * 
  * if a middle block is freed, previous block's next pointer is set to the next of the freed block
  * freed block's next pointer is set to nullptr
  * ending address + 1 is the address to the first byte of previous block (needed to traverse backwards)
@@ -19,21 +23,21 @@
  * [0x2002] = 0xXXXX (last byte of this block)
  * - second block
  * [0x2003] = 0xAAAAAAAA
- * [0x2004] = 0x0 (previous block's starting address) - seems a bad idea...
+ * [0x2004] = 0x3 (previous block's starting address) - 0 + 3
  * [0x2005] = 0x4006 (next block's starting address)
  * [0x2006] = 0xYYYY (first byte of this block)
  * ...
  * [0x4005] = 0xYYYY (last byte of this block)
  * - third block
  * [0x4006] = 0xAAAAAAAA
- * [0x4007] = 0x2004 (previous block's starting address)
+ * [0x4007] = 0x2009 (previous block's starting address)
  * [0x4008] = 0x6009 (next block's starting address; points to a place that doesn't exist, but is done anyway to indicate the end of the pool)
  * [0x4009] = 0xZZZZ (first byte of this block)
  * ...
  * [0x6008] = 0xZZZZ (last byte of this block)
  * - no blocks after this point
  * [0x6009] = 0xAAAAAAAA (assigned when inserting the third block)
- * [0x600A] = 0x4007 (previous block's starting address; assigned when inserting the third block)
+ * [0x600A] = 0x400A (previous block's starting address; assigned when inserting the third block)
  * [0X600B] = 0x0
  * ...
  *  - that's it.
@@ -64,7 +68,7 @@ void* EmuPool_allocate_memory(uint32 size) {
 
         microcon_emupool[2] = blocksize; // next block starts after this block
         microcon_emupool[blocksize] = 0xAAAAAAAA; // magic number for next block
-        microcon_emupool[blocksize + 1] = 0; // next block's previous pointer is null
+        microcon_emupool[blocksize + 1] = 0x3; // next block's previous pointer is null
 
         return &microcon_emupool[3];
     }
@@ -92,7 +96,7 @@ void* EmuPool_allocate_memory(uint32 size) {
             microcon_emupool[index + 2] = index + blocksize;
             /* pre-init for next block */
             microcon_emupool[index + blocksize] = 0xAAAAAAAA;
-            microcon_emupool[index + blocksize + 1] = index;
+            microcon_emupool[index + blocksize + 1] = index + 3;
             return &microcon_emupool[index + 3];
         }
         /* check if there is a free block between previous block and current block */
@@ -105,7 +109,7 @@ void* EmuPool_allocate_memory(uint32 size) {
                 microcon_emupool[index + 2] = index + blocksize;
                 /* pre-init for next block */
                 microcon_emupool[index + blocksize] = 0xAAAAAAAA;
-                microcon_emupool[index + blocksize + 1] = prev_header_nextblock_startaddr;
+                microcon_emupool[index + blocksize + 1] = prev_header_nextblock_startaddr + 3;
                 /* update deleted entry */
                 microcon_emupool[curr_header_nextblock_startaddr + 1] += blocksize;
                 return &microcon_emupool[index + 3];
@@ -149,7 +153,7 @@ void EmuPool_free_memory(void* ptr){
         microcon_emupool[nextblock_startaddr + 1] = prevblock_startaddr;
     }
 
-    microcon_emupool[prevblock_startaddr + 2] = nextblock_startaddr;
+    microcon_emupool[prevblock_startaddr - 1] = nextblock_startaddr;
     /* clear the header */
     microcon_emupool[baseindex - 3] = 0;
     microcon_emupool[baseindex - 2] = 0;
