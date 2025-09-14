@@ -192,8 +192,19 @@ void Core_start(Thread_data* mydata) {
 	// FOR NOW: we shall do test related init in here
 
 	EmuPool_Init();
-	uint32* hello = (uint32*)EmuPool_allocate_memory(100 * sizeof(uint32));
-	for(int i = -3; i < 100; i++){
+	uint32* hello = (uint32*)EmuPool_allocate_memory(10 * sizeof(uint32));
+	for(int i = -3; i < 10; i++){
+		printf("%d\n", hello[i]);
+	}
+	EmuPool_free_memory(hello);
+	hello = (uint32*)EmuPool_allocate_memory(10 * sizeof(uint32));
+	for (int i = -3; i < 10; i++) {
+		printf("%d\n", hello[i]);
+	}
+	EmuPool_free_memory(hello);
+	hello = (uint32*)EmuPool_allocate_memory(12 * sizeof(uint32));
+	for (int i = -3; i < 12; i++) {
+		hello[i] = i;	// it will corrupt
 		printf("%d\n", hello[i]);
 	}
 	EmuPool_free_memory(hello);
