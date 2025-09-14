@@ -104,7 +104,7 @@ void* EmuPool_allocate_memory(uint32 size) {
             /* when dealloc, the next block's prevaddr is not updated. we use that to figure out the size */
             /* we dont keep the block size itself so this is the only way to figure out the size of the missing block */
             uint32 gap = curr_header_nextblock_startaddr /* next next block */ - microcon_emupool[curr_header_nextblock_startaddr + 1] /* end of valid block + 1 */;
-            if (gap > blocksize){
+            if (gap >= blocksize){
                 /* we have enough space to insert a new block here */
                 microcon_emupool[index + 2] = index + blocksize;
                 /* pre-init for next block */
