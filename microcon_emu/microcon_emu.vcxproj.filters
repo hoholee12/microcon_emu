@@ -36,6 +36,9 @@
     <ClCompile Include="Clock.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="EmuPool.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.hpp">
@@ -57,6 +60,9 @@
       <Filter>소스 파일</Filter>
     </ClInclude>
     <ClInclude Include="Clock.hpp">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="EmuPool.hpp">
       <Filter>소스 파일</Filter>
     </ClInclude>
   </ItemGroup>

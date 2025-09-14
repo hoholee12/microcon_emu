@@ -1,4 +1,6 @@
 #pragma once
+
+#include "EmuPool.hpp"
 #include "Proxy.hpp"
 #include "Memory.hpp"
 #include "Clock.hpp"

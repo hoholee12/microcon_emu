@@ -7,3 +7,4 @@
 extern uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
 extern void* EmuPool_allocate_memory(uint32 size);
 extern void EmuPool_free_memory(void* ptr);
+extern void EmuPool_Init();

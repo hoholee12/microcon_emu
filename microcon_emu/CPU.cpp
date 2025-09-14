@@ -6,13 +6,13 @@ struct CPU_struct_reg CPU_var_reg = { 0, };
 
 CPU_op_vect_t* CPU_op_vect[0xFFFF] = { 0, }; // 16 bits
 
-void CPU_init_insertop(void* func, uint32 opcode){
-	CPU_op_vect_t* temp = CPU_op_vect[opcode >> 16];
-	if (temp == nullptr){
-		temp = 
-	}
+// void CPU_init_insertop(void* func, uint32 opcode){
+// 	CPU_op_vect_t* temp = CPU_op_vect[opcode >> 16];
+// 	if (temp == nullptr){
+// 		temp = 
+// 	}
 
-}
+// }
 
 void CPU_init(uint32 pc_pos, uint32 sp_pos) {
 	// init to zero

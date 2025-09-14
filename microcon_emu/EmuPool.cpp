@@ -19,7 +19,7 @@
  * [0x2002] = 0xXXXX (last byte of this block)
  * - second block
  * [0x2003] = 0xAAAAAAAA
- * [0x2004] = 0x0 (previous block's starting address)
+ * [0x2004] = 0x0 (previous block's starting address) - seems a bad idea...
  * [0x2005] = 0x4006 (next block's starting address)
  * [0x2006] = 0xYYYY (first byte of this block)
  * ...
@@ -123,6 +123,10 @@ void* EmuPool_allocate_memory(uint32 size) {
 	}
 
 
+}
+
+void EmuPool_Init(){
+    EmuPool_allocate_memory(4); // head entry. it should not ever be used or freed during lifetime
 }
 
 void EmuPool_free_memory(void* ptr){
