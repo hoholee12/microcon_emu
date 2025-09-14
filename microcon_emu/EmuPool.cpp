@@ -52,6 +52,16 @@
  */
 
 uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
+
+void* EmuPool_allocate_clear_memory(uint32 size)
+{
+    uint32* ptr = NULL;
+    ptr = (uint32*)EmuPool_allocate_memory(size);
+    memset(ptr, 0, size);
+
+    return ptr;
+}
+
 void* EmuPool_allocate_memory(uint32 size) {
 	uint32 index = 0;
 	uint32 blocksize = size / 4 + 3;	// size in 4byte + 3 for header

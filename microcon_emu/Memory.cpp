@@ -16,7 +16,7 @@ void Memory_addMap(uint32 base, uint32 size, uint32 attrib) {
 		Memory_var_arr[Memory_var_arrlen].base = base;
 		Memory_var_arr[Memory_var_arrlen].attrib = attrib & MEMORY_ATTRIB_CRITICAL;
 		Memory_var_arr[Memory_var_arrlen].nd_attrib = attrib & MEMORY_ATTRIB_NONCRITICAL;
-		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
+		Memory_var_arr[Memory_var_arrlen].data = (uint8*)ecalloc(size, sizeof(uint8));
 	
 	}
 	else if (Memory_var_arrlen == MEMORY_MAP_MAX_SECTIONS){
@@ -32,7 +32,7 @@ void Memory_addMap(uint32 base, uint32 size, uint32 attrib) {
 		Memory_var_arr[Memory_var_arrlen].base = base;
 		Memory_var_arr[Memory_var_arrlen].attrib = attrib & MEMORY_ATTRIB_CRITICAL;
 		Memory_var_arr[Memory_var_arrlen].nd_attrib = attrib & MEMORY_ATTRIB_NONCRITICAL;
-		Memory_var_arr[Memory_var_arrlen].data = (uint8*)calloc(size, sizeof(uint8));
+		Memory_var_arr[Memory_var_arrlen].data = (uint8*)ecalloc(size, sizeof(uint8));
 	
 	}
 

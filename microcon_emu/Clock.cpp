@@ -80,10 +80,10 @@ void Clock_init()
 
 	// deallocate previous entry
 	if ((Clock_schedule_vect_alloc & 0x1) != 0x0) {
-		free(Clock_schedule_vect);
+		efree(Clock_schedule_vect);
 	}
 	if ((Clock_schedule_vect_alloc & 0x2) != 0x0) {
-		free(Clock_schedule_linkvect);
+		efree(Clock_schedule_linkvect);
 	}
 
 	Clock_var_wake = 1;
@@ -548,7 +548,7 @@ void Clock_ready()
 	* TODO: we might need extra tapes if there are more than 32 peripherals to manage.
 	*/
 
-	Clock_schedule_vect = (uint32*)calloc(Clock_var_maxtickrate, sizeof(uint32));
+	Clock_schedule_vect = (uint32*)ecalloc(Clock_var_maxtickrate, sizeof(uint32));
 	Clock_schedule_vect_alloc |= 0x1;
 
 	// hammer the pins in
@@ -642,7 +642,7 @@ void Clock_ready()
 	* create a new linkvector
 	*/
 	if (Clock_var_vectormode == 1) {
-		Clock_schedule_linkvect = (uint32*)calloc(Clock_var_maxtickrate, sizeof(uint32));
+		Clock_schedule_linkvect = (uint32*)ecalloc(Clock_var_maxtickrate, sizeof(uint32));
 		Clock_schedule_vect_alloc |= 0x2;
 		uint32 front_loc = 0;	// last index is 0 (indicator that the tape ends after this)
 		// do this in reverse

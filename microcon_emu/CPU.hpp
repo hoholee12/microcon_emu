@@ -111,7 +111,7 @@ typedef struct {
     CPU_op_vect_ext_t* op_ext;
 } CPU_op_vect_t;
 
-extern CPU_op_vect_t* CPU_op_vect[0xFFFF]; // 16 bits
+extern CPU_op_vect_t** CPU_op_vect;
 
 /* extracted from DDI0403Ee_arm_v7m_ref chapter 7.7 : instructions in alphabetical order */
 typedef enum CPU_op_enum {
@@ -381,8 +381,7 @@ typedef enum CPU_op_enum {
     NUMBER_OF_CPU_OPCODES
 } CPU_op_enum;
 
-extern struct CPU_struct_reg CPU_var_reg;
-
+extern struct CPU_struct_reg* CPU_var_reg;
 
 // functions
 

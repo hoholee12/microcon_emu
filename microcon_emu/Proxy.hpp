@@ -29,3 +29,5 @@ extern uint32 Clock_gettime_msec();
 extern void Clock_sleep(uint32 msec);
 
 #define NULL 0
+
+#include "EmuPool.hpp"

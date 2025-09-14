@@ -144,9 +144,9 @@ void hello_opt(int* data, int* value) {
 void Core_mainThread() {
 	// FOR NOW: we shall do test running here
 
-	int* data = (int *)calloc(0x10000000, sizeof(int));
+	int* data = (int *)ecalloc(0x10000, sizeof(int));
 
-	for (int i = 0; i < 0x10000000; i++) {
+	for (int i = 0; i < 0x10000; i++) {
 		switch (i % 6) {
 		case 0:
 			data[i] = 123;
@@ -170,7 +170,7 @@ void Core_mainThread() {
 
 		}
 	}
-	data[0x10000000 - 1] = 111;
+	data[0x10000 - 1] = 111;
 	int value = 121;
 
 	hello_opt(data, &value);			// 1st place
@@ -192,6 +192,7 @@ void Core_start(Thread_data* mydata) {
 	// FOR NOW: we shall do test related init in here
 
 	EmuPool_Init();
+	/*
 	efree((uint32*)(microcon_emupool + 0x3));
 	uint32* hello = emalloc(10 * sizeof(uint32));
 	for(int i = -3; i < 10; i++){
@@ -211,7 +212,7 @@ void Core_start(Thread_data* mydata) {
 	efree(hello);
 	exit(0);
 
-
+*/
 
 
 
