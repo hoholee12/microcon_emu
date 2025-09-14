@@ -135,7 +135,7 @@ void EmuPool_Init(){
 
 void EmuPool_free_memory(void* ptr){
     /* pointer is 64 bit but index is much less than that so this is fine */
-    uint32 baseindex = (uint32*)ptr - (uint32*)&microcon_emupool[0];
+    uint32 baseindex = (uint32*)ptr - (uint32*)microcon_emupool;
     if (microcon_emupool[baseindex - 3] != 0xAAAAAAAA){
         // memory corruption detected
         m_assert(0, "memory corruption detected in emu pool, or you are passing an invalid pointer");

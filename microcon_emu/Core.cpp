@@ -192,6 +192,7 @@ void Core_start(Thread_data* mydata) {
 	// FOR NOW: we shall do test related init in here
 
 	EmuPool_Init();
+	EmuPool_free_memory((uint32*)(microcon_emupool + 0x3));
 	uint32* hello = (uint32*)EmuPool_allocate_memory(10 * sizeof(uint32));
 	for(int i = -3; i < 10; i++){
 		printf("%d\n", hello[i]);
