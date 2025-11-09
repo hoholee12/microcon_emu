@@ -654,7 +654,7 @@ void Clock_ready()
 			}
 		}
 
-		printf("linkvect generated\n");
+		// printf("linkvect generated\n");
 	}
 
 	Clock_var_poweron = 1;	// ready to run.

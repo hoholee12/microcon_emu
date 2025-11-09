@@ -6,6 +6,7 @@
 #include <setjmp.h>
 #include <intrin.h>
 #include <assert.h>
+#include <stdint.h> // for UINT32_MAX
 #define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
 
 // type defines
