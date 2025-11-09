@@ -203,6 +203,7 @@ void* EmuPool_allocate_memory(uint32 size) {
     uint32 prev_header_nextblock_startaddr = 0;
 
     void* result = NULL;
+    uint32 search_iteration = 0;
 
     // very first allocation
     if (microcon_emupool[0] == 0){
@@ -217,11 +218,13 @@ void* EmuPool_allocate_memory(uint32 size) {
         
         printf("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
                size, 3, 3, 3, 3 + (size / 4) - 1, 3, 3 + (size / 4) - 1);
+        printf("  Search: First allocation (no search needed)\n");
         
         return result;
     }
 
     // we have at least one block here
+    printf("[EmuPool] Searching for %u bytes (%u uint32s)...\n", size, size / 4);
     while(1){
         if (microcon_emupool[index] != 0xAAAAAAAA){
             // memory corruption detected
@@ -238,10 +241,15 @@ void* EmuPool_allocate_memory(uint32 size) {
         curr_header_prevblock_startaddr = microcon_emupool[index + 1];
         curr_header_nextblock_startaddr = microcon_emupool[index + 2];
 
+        printf("  [%u] Checking index %u (0x%X): prev=%u, next=%u\n", 
+               search_iteration, index, index, 
+               curr_header_prevblock_startaddr, curr_header_nextblock_startaddr);
+
         /* one iteration */
         /* check if we are at the position of the last + 1 block */
         if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr == 0x0){
             /* start adding new block */
+            printf("  -> Found end of list, allocating new block at end\n");
             write_pool(index + 2, index + blocksize, "allocate_last:next");
             /* pre-init for next block */
             write_pool(index + blocksize, 0xAAAAAAAA, "allocate_last:new_magic");
@@ -254,6 +262,7 @@ void* EmuPool_allocate_memory(uint32 size) {
                    size, index + 3, index + 3, 
                    index + 3, index + 3 + (size / 4) - 1,
                    index + 3, index + 3 + (size / 4) - 1);
+            printf("  Search: %u iterations to find end of list\n", search_iteration + 1);
             
             return result;
         }
@@ -262,8 +271,10 @@ void* EmuPool_allocate_memory(uint32 size) {
             /* when dealloc, the next block's prevaddr is not updated. we use that to figure out the size */
             /* we dont keep the block size itself so this is the only way to figure out the size of the missing block */
             uint32 gap = curr_header_nextblock_startaddr /* next next block */ - microcon_emupool[curr_header_nextblock_startaddr + 1] /* end of valid block + 1 */;
+            printf("  -> Detected gap of %u uint32s between blocks\n", gap);
             if (gap >= blocksize){
                 /* we have enough space to insert a new block here */
+                printf("  -> Gap is large enough, reusing freed space\n");
                 write_pool(index + 2, index + blocksize, "allocate_gap:next");
                 /* pre-init for next block */
                 write_pool(index + blocksize, 0xAAAAAAAA, "allocate_gap:new_magic");
@@ -280,10 +291,12 @@ void* EmuPool_allocate_memory(uint32 size) {
                        size, index + 3, index + 3,
                        index + 3, index + 3 + (size / 4) - 1,
                        index + 3, index + 3 + (size / 4) - 1);
+                printf("  Search: %u iterations to find suitable gap\n", search_iteration + 1);
                 
                 return result;
             }
             /* else, keep looking */
+            printf("  -> Gap too small (need %u), continuing search\n", blocksize);
         }
 
         /* update index to the next block */
@@ -293,6 +306,7 @@ void* EmuPool_allocate_memory(uint32 size) {
         prev_header_prevblock_startaddr = curr_header_prevblock_startaddr;
         prev_header_nextblock_startaddr = curr_header_nextblock_startaddr;
 
+        search_iteration++;
     }
 }
 
