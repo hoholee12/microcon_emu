@@ -39,31 +39,37 @@
     <ClCompile Include="EmuPool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="EmuPoolDebug.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="main.hpp">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Core.hpp">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Proxy.hpp">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Memory.hpp">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="CPU.hpp">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="X86Emitter.hpp">
-      <Filter>소스 파일</Filter>
+    <ClInclude Include="EmuPoolDebug.hpp">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Clock.hpp">
-      <Filter>소스 파일</Filter>
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Core.hpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CPU.hpp">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="EmuPool.hpp">
-      <Filter>소스 파일</Filter>
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="main.hpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory.hpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Proxy.hpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="X86Emitter.hpp">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -85,6 +85,7 @@
     <ClCompile Include="Core.cpp" />
     <ClCompile Include="CPU.cpp" />
     <ClCompile Include="EmuPool.cpp" />
+    <ClCompile Include="EmuPoolDebug.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Proxy.cpp" />
@@ -95,6 +96,7 @@
     <ClInclude Include="Core.hpp" />
     <ClInclude Include="CPU.hpp" />
     <ClInclude Include="EmuPool.hpp" />
+    <ClInclude Include="EmuPoolDebug.hpp" />
     <ClInclude Include="main.hpp" />
     <ClInclude Include="Memory.hpp" />
     <ClInclude Include="Proxy.hpp" />
