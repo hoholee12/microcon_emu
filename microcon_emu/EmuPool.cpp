@@ -97,38 +97,28 @@ void* EmuPool_allocate_memory(uint32 size) {
         microcon_emupool[2] = blocksize;
         microcon_emupool[blocksize] = 0xAAAAAAAA;
         microcon_emupool[blocksize + 1] = 0x3;
-#ifdef MORE_DEBUG_LOGS
-        debug_log_write(0, 0, 0xAAAAAAAA, "first_allocation:magic");
-        debug_log_write(1, 0, 0, "first_allocation:prev");
-        debug_log_write(2, 0, blocksize, "first_allocation:next");
-        debug_log_write(blocksize, 0, 0xAAAAAAAA, "first_allocation:next_magic");
-        debug_log_write(blocksize + 1, 0, 0x3, "first_allocation:next_prev");
-#endif
+        DEBUG_LOG_WRITE(0, 0, 0xAAAAAAAA, "first_allocation:magic");
+        DEBUG_LOG_WRITE(1, 0, 0, "first_allocation:prev");
+        DEBUG_LOG_WRITE(2, 0, blocksize, "first_allocation:next");
+        DEBUG_LOG_WRITE(blocksize, 0, 0xAAAAAAAA, "first_allocation:next_magic");
+        DEBUG_LOG_WRITE(blocksize + 1, 0, 0x3, "first_allocation:next_prev");
 
         result = &microcon_emupool[3];
-#ifdef MORE_DEBUG_LOGS
-        debug_register_block(3, size);
-#endif
+        DEBUG_REGISTER_BLOCK(3, size);
         
-#ifdef MORE_DEBUG_LOGS
-        printf("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
+        DEBUG_PRINTF("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
                size, 3, 3, 3, 3 + (size / 4) - 1, 3, 3 + (size / 4) - 1);
-        printf("  Search: First allocation (no search needed)\n");
-#endif
+        DEBUG_PRINTF("  Search: First allocation (no search needed)\n");
         
         return result;
     }
 
     // we have at least one block here
-#ifdef MORE_DEBUG_LOGS
-    printf("[EmuPool] Searching for %u bytes (%u uint32s)...\n", size, size / 4);
-#endif
+    DEBUG_PRINTF("[EmuPool] Searching for %u bytes (%u uint32s)...\n", size, size / 4);
     while(1){
         if (microcon_emupool[index] != 0xAAAAAAAA){
             // memory corruption detected
-#ifdef MORE_DEBUG_LOGS
-            debug_dump_write_history(index);
-#endif
+            DEBUG_DUMP_HISTORY(index);
             m_assert(0, "memory corruption detected in emu pool");
         }
 
@@ -141,11 +131,9 @@ void* EmuPool_allocate_memory(uint32 size) {
         curr_header_prevblock_startaddr = microcon_emupool[index + 1];
         curr_header_nextblock_startaddr = microcon_emupool[index + 2];
 
-#ifdef MORE_DEBUG_LOGS
-        printf("  [%u] Checking index %u (0x%X): prev=%u, next=%u\n", 
+        DEBUG_PRINTF("  [%u] Checking index %u (0x%X): prev=%u, next=%u\n", 
                search_iteration, index, index, 
                curr_header_prevblock_startaddr, curr_header_nextblock_startaddr);
-#endif
 
         /* one iteration */
         /* check if we are at the position of the last + 1 block */
@@ -155,25 +143,19 @@ void* EmuPool_allocate_memory(uint32 size) {
             /* pre-init for next block */
             microcon_emupool[index + blocksize] = 0xAAAAAAAA;
             microcon_emupool[index + blocksize + 1] = index + 3;
-#ifdef MORE_DEBUG_LOGS
-            printf("  -> Found end of list, allocating new block at end\n");
-            debug_log_write(index + 2, 0, index + blocksize, "allocate_last:next");
-            debug_log_write(index + blocksize, 0, 0xAAAAAAAA, "allocate_last:new_magic");
-            debug_log_write(index + blocksize + 1, 0, index + 3, "allocate_last:new_prev");
-#endif
+            DEBUG_PRINTF("  -> Found end of list, allocating new block at end\n");
+            DEBUG_LOG_WRITE(index + 2, 0, index + blocksize, "allocate_last:next");
+            DEBUG_LOG_WRITE(index + blocksize, 0, 0xAAAAAAAA, "allocate_last:new_magic");
+            DEBUG_LOG_WRITE(index + blocksize + 1, 0, index + 3, "allocate_last:new_prev");
             
             result = &microcon_emupool[index + 3];
-#ifdef MORE_DEBUG_LOGS
-            debug_register_block(index + 3, size);
-#endif
+            DEBUG_REGISTER_BLOCK(index + 3, size);
             
-#ifdef MORE_DEBUG_LOGS
-            printf("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
+            DEBUG_PRINTF("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
                    size, index + 3, index + 3, 
                    index + 3, index + 3 + (size / 4) - 1,
                    index + 3, index + 3 + (size / 4) - 1);
-            printf("  Search: %u iterations to find end of list\n", search_iteration + 1);
-#endif
+            DEBUG_PRINTF("  Search: %u iterations to find end of list\n", search_iteration + 1);
             
             return result;
         }
@@ -189,9 +171,8 @@ void* EmuPool_allocate_memory(uint32 size) {
                 uint32 freed_block_start = curr_header_prevblock_startaddr - 3;
                 uint32 gap = index - freed_block_start; /* gap size from freed block start to current block start */
                 
-#ifdef MORE_DEBUG_LOGS
-                printf("  -> Detected gap of %u uint32s (freed block at %u, current at %u)\n", gap, freed_block_start, index);
-#endif
+                DEBUG_PRINTF("  -> Detected gap of %u uint32s (freed block at %u, current at %u)\n", gap, freed_block_start, index);
+                
                 if (gap >= blocksize) {
                 /* we have enough space to insert a new block here */
                     microcon_emupool[freed_block_start] = 0xAAAAAAAA;
@@ -203,35 +184,29 @@ void* EmuPool_allocate_memory(uint32 size) {
                         microcon_emupool[freed_block_start + blocksize + 1] = freed_block_start + 3;
                         microcon_emupool[freed_block_start + blocksize + 2] = index;
                     }
-#ifdef MORE_DEBUG_LOGS
-                    printf("  -> Gap is large enough, reusing freed space at %u\n", freed_block_start);
-                    debug_log_write(freed_block_start, 0, 0xAAAAAAAA, "allocate_gap:restore_magic");
-                    debug_log_write(freed_block_start + 1, 0, prev_header_nextblock_startaddr + 3, "allocate_gap:restore_prev");
-                    debug_log_write(freed_block_start + 2, 0, freed_block_start + blocksize, "allocate_gap:restore_next");
+                    DEBUG_PRINTF("  -> Gap is large enough, reusing freed space at %u\n", freed_block_start);
+                    DEBUG_LOG_WRITE(freed_block_start, 0, 0xAAAAAAAA, "allocate_gap:restore_magic");
+                    DEBUG_LOG_WRITE(freed_block_start + 1, 0, prev_header_nextblock_startaddr + 3, "allocate_gap:restore_prev");
+                    DEBUG_LOG_WRITE(freed_block_start + 2, 0, freed_block_start + blocksize, "allocate_gap:restore_next");
                     if (gap > blocksize) {
-                        debug_log_write(freed_block_start + blocksize, 0, 0xAAAAAAAA, "allocate_gap:split_magic");
-                        debug_log_write(freed_block_start + blocksize + 1, 0, freed_block_start + 3, "allocate_gap:split_prev");
-                        debug_log_write(freed_block_start + blocksize + 2, 0, index, "allocate_gap:split_next");
+                        DEBUG_LOG_WRITE(freed_block_start + blocksize, 0, 0xAAAAAAAA, "allocate_gap:split_magic");
+                        DEBUG_LOG_WRITE(freed_block_start + blocksize + 1, 0, freed_block_start + 3, "allocate_gap:split_prev");
+                        DEBUG_LOG_WRITE(freed_block_start + blocksize + 2, 0, index, "allocate_gap:split_next");
                     }
-#endif
                     
                     result = &microcon_emupool[freed_block_start + 3];
-#ifdef MORE_DEBUG_LOGS
-                    debug_register_block(freed_block_start + 3, size);
+                    DEBUG_REGISTER_BLOCK(freed_block_start + 3, size);
                     
-                    printf("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X) [GAP REUSE]\n",
+                    DEBUG_PRINTF("[EmuPool] Allocated %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X) [GAP REUSE]\n",
                            size, freed_block_start + 3, freed_block_start + 3,
                            freed_block_start + 3, freed_block_start + 3 + (size / 4) - 1,
                            freed_block_start + 3, freed_block_start + 3 + (size / 4) - 1);
-                    printf("  Search: %u iterations to find suitable gap\n", search_iteration + 1);
-#endif
+                    DEBUG_PRINTF("  Search: %u iterations to find suitable gap\n", search_iteration + 1);
                     
                     return result;
                 } else {
                     /* Gap too small, keep looking */
-#ifdef MORE_DEBUG_LOGS
-                    printf("  -> Gap too small (need %u), continuing search\n", blocksize);
-#endif
+                    DEBUG_PRINTF("  -> Gap too small (need %u), continuing search\n", blocksize);
                 }
             }
         }
@@ -248,9 +223,7 @@ void* EmuPool_allocate_memory(uint32 size) {
 }
 
 void EmuPool_Init(){
-#ifdef MORE_DEBUG_LOGS
-    debug_init();
-#endif
+    DEBUG_INIT();
     EmuPool_allocate_memory(4); // head entry. it should not ever be used or freed during lifetime
 }
 
@@ -259,9 +232,7 @@ void EmuPool_free_memory(void* ptr){
     uint32 baseindex = (uint32*)ptr - (uint32*)microcon_emupool;
     if (microcon_emupool[baseindex - 3] != 0xAAAAAAAA){
         // memory corruption detected
-#ifdef MORE_DEBUG_LOGS
-        debug_dump_write_history(baseindex - 3);
-#endif
+        DEBUG_DUMP_HISTORY(baseindex - 3);
         m_assert(0, "memory corruption detected in emu pool, or you are passing an invalid pointer");
     }
     uint32 prevblock_startaddr = microcon_emupool[baseindex - 2];
@@ -272,22 +243,20 @@ void EmuPool_free_memory(void* ptr){
         m_assert(0, "cannot free the first block in emu pool");
     }
 
-#ifdef MORE_DEBUG_LOGS
     // Find the block to get its range before unregistering
-    uint32 end_index = debug_get_block_end_index(baseindex);
+    uint32 end_index = DEBUG_GET_BLOCK_END(baseindex);
     
     if (end_index != 0) {
         uint32 size_in_bytes = (end_index - baseindex + 1) * 4;
         
-        printf("[EmuPool] Freed %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
+        DEBUG_PRINTF("[EmuPool] Freed %u bytes at index %u (0x%X), range: [%u - %u] (0x%X - 0x%X)\n",
                size_in_bytes, baseindex, baseindex,
                baseindex, end_index,
                baseindex, end_index);
     }
 
     // Unregister this block from tracking
-    debug_unregister_block(baseindex);
-#endif
+    DEBUG_UNREGISTER_BLOCK(baseindex);
 
     // COALESCING LOGIC: Check for adjacent free blocks and merge them
     uint32 final_prevblock_startaddr = prevblock_startaddr;
@@ -321,9 +290,7 @@ void EmuPool_free_memory(void* ptr){
             }
             
             if (scan_addr != 0 && microcon_emupool[scan_addr] == 0) {
-#ifdef MORE_DEBUG_LOGS
-                printf("  -> Coalescing with previous free region starting at %u\n", scan_addr);
-#endif
+                DEBUG_PRINTF("  -> Coalescing with previous free region starting at %u\n", scan_addr);
                 // Found the start of free region, use its previous block
                 final_prevblock_startaddr = microcon_emupool[scan_addr + 1];
             }
@@ -353,27 +320,21 @@ void EmuPool_free_memory(void* ptr){
         }
         
         if (final_nextblock_startaddr != nextblock_startaddr) {
-#ifdef MORE_DEBUG_LOGS
-            printf("  -> Coalescing with next free region ending at %u\n", scan_addr);
-#endif
+            DEBUG_PRINTF("  -> Coalescing with next free region ending at %u\n", scan_addr);
         }
     }
 
-#ifdef MORE_DEBUG_LOGS
     if (final_prevblock_startaddr != prevblock_startaddr || final_nextblock_startaddr != nextblock_startaddr) {
-        printf("  -> Block coalescing: prev %u->%u, next %u->%u\n", 
+        DEBUG_PRINTF("  -> Block coalescing: prev %u->%u, next %u->%u\n", 
                prevblock_startaddr, final_prevblock_startaddr,
                nextblock_startaddr, final_nextblock_startaddr);
     }
-#endif
 
     // Update the forward link: previous block now points to final next block
     if (final_prevblock_startaddr != 0) {
         uint32 old_val = microcon_emupool[final_prevblock_startaddr - 1];
         microcon_emupool[final_prevblock_startaddr - 1] = final_nextblock_startaddr;
-#ifdef MORE_DEBUG_LOGS
-        debug_log_write(final_prevblock_startaddr - 1, old_val, final_nextblock_startaddr, "free:coalesce_update_prev_next");
-#endif
+        DEBUG_LOG_WRITE(final_prevblock_startaddr - 1, old_val, final_nextblock_startaddr, "free:coalesce_update_prev_next");
     }
 
     // NOTE: We intentionally do NOT update the next block's previous pointer
@@ -387,10 +348,8 @@ void EmuPool_free_memory(void* ptr){
     microcon_emupool[baseindex - 3] = 0;
     microcon_emupool[baseindex - 2] = 0;
     microcon_emupool[baseindex - 1] = 0;
-#ifdef MORE_DEBUG_LOGS
-    debug_log_write(baseindex - 3, old_magic, 0, "free:clear_magic");
-    debug_log_write(baseindex - 2, old_prev, 0, "free:clear_prev");
-    debug_log_write(baseindex - 1, old_next, 0, "free:clear_next");
-#endif
+    DEBUG_LOG_WRITE(baseindex - 3, old_magic, 0, "free:clear_magic");
+    DEBUG_LOG_WRITE(baseindex - 2, old_prev, 0, "free:clear_prev");
+    DEBUG_LOG_WRITE(baseindex - 1, old_next, 0, "free:clear_next");
     /* we do not clear the data area. it is not needed */
 }
