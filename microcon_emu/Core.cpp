@@ -12,29 +12,29 @@ int test_peri3_count = 0;
 int test_peri4_count = 0;
 
 void test_pericpu() {
-    printf("pericpu executing... the time is: %d\n", Clock_currenttime());
+    eprintf("pericpu executing... the time is: %d\n", Clock_currenttime());
     test_pericpu_count += 1;
 }
 void test_peri0() {
-    printf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
+    eprintf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
     test_peri0_count += 1;
-    printf("peri0: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    eprintf("peri0: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri1() {
-    printf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
+    eprintf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
     test_peri1_count += 1;
-    printf("peri1: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    eprintf("peri1: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri2() {
-    printf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
+    eprintf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
     test_peri2_count += 1;
-    printf("peri2: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    eprintf("peri2: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri3() {
-    printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
+    eprintf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
     test_peri3_count += 1;
 
-    printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d, Clock_var_hintcycles: %d\n", test_pericpu_count, 
+    eprintf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d, Clock_var_hintcycles: %d\n", test_pericpu_count, 
     	test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count, CLOCK_GET_AVAILABLE_CYCLES());
     // TODO: clock drift test (must not drift, otherwise accuracy is at stake!)
 
@@ -54,38 +54,38 @@ void test_peri3() {
     if (Core_var_Memory_init) {
         uint8* dat;
         // memory check
-        printf("memory read on 0x20000000, it should work\n");
+        eprintf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
-        printf("memory write on 0x20000000, it should work\n");
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
+        eprintf("memory write on 0x20000000, it should work\n");
         Memory_write(0x20000000, Memory_enum_size::u8, 0x12, MEMORY_ATTRIB_S_W);
 
-        printf("memory read on 0x20000000, it should work\n");
+        eprintf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
 
-        printf("memory read on 0x1FFFFFFF, it should NOT work\n");
+        eprintf("memory read on 0x1FFFFFFF, it should NOT work\n");
         dat = (uint8*)Memory_read(0x1FFFFFFF, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
 
-        printf("memory read on 0x20000000 with wrong attribute, it should NOT work\n");
+        eprintf("memory read on 0x20000000 with wrong attribute, it should NOT work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_U_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
 
         // 32bit memory access check
 
-        printf("memory write on 0x20000000, it should work\n");
+        eprintf("memory write on 0x20000000, it should work\n");
         Memory_write(0x20000000, Memory_enum_size::u32, 0xDEADBEEF, MEMORY_ATTRIB_S_R);
 
-        printf("memory read on 0x20000000, it should work\n");
+        eprintf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000001, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000002, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000003, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) eprintf("val = %02x\n", *dat);
 
         // memory write supported upto 4 byte writes in little-endian. only 1 byte supported for read.
 
@@ -95,7 +95,7 @@ void test_peri3() {
 
 void test_peri_print() {
     test_peri4_count += 1;
-    // printf("%d seconds passed. slept: %d\n", test_peri4_count, Clock_var_sleepfor);
+    // eprintf("%d seconds passed. slept: %d\n", test_peri4_count, Clock_var_sleepfor);
 
 }
 
@@ -175,7 +175,7 @@ void Core_mainThread() {
 
 	hello_opt(data, &value);			// 1st place
 
-	// printf("value = %d\n", value);
+	// eprintf("value = %d\n", value);
 
 
 
@@ -196,18 +196,18 @@ void Core_start(Thread_data* mydata) {
 	efree((uint32*)(microcon_emupool + 0x3));
 	uint32* hello = emalloc(10 * sizeof(uint32));
 	for(int i = -3; i < 10; i++){
-		printf("%d\n", hello[i]);
+		eprintf("%d\n", hello[i]);
 	}
 	efree(hello);
 	hello = emalloc(10 * sizeof(uint32));
 	for (int i = -3; i < 10; i++) {
-		printf("%d\n", hello[i]);
+		eprintf("%d\n", hello[i]);
 	}
 	efree(hello);
 	hello = emalloc(12 * sizeof(uint32));
 	for (int i = -3; i < 12; i++) {
 		hello[i] = i;	// it will corrupt
-		printf("%d\n", hello[i]);
+		eprintf("%d\n", hello[i]);
 	}
 	efree(hello);
 	exit(0);
@@ -292,7 +292,7 @@ void Core_start(Thread_data* mydata) {
 	mydata->func = Core_mainThread;
 	mydata->param1 = 0;
 	mydata->param2 = 0;
-	printf("start!\n");
+	eprintf("start!\n");
 	Core_var_status = 1;	// start
 
 
@@ -304,14 +304,14 @@ void Core_start(Thread_data* mydata) {
 
 
 void Core_pause() {
-	printf("pause!\n");
+	eprintf("pause!\n");
 	Core_var_status = 2;	// pause
 
 }
 
 
 void Core_resume() {
-	printf("resume!\n");
+	eprintf("resume!\n");
 	Core_var_status = 1;	// start
 
 }

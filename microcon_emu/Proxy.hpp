@@ -9,6 +9,15 @@
 #include <stdint.h> // for UINT32_MAX
 #define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
 
+// Debug logging macro
+//#define SHOW_DEBUG_LOG // Uncomment to enable debug printf statements
+
+#ifdef SHOW_DEBUG_LOG
+#define eprintf(...) printf(__VA_ARGS__)
+#else
+#define eprintf(...) ((void)0)
+#endif
+
 // type defines
 
 typedef unsigned long uint32;

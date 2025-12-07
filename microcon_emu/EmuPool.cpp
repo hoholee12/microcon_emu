@@ -185,13 +185,21 @@ void* EmuPool_allocate_memory(uint32 size) {
                     microcon_emupool[freed_block_start] = 0xAAAAAAAA;
                     microcon_emupool[freed_block_start + 1] = prev_block_header_index + 3;
                     microcon_emupool[freed_block_start + 2] = freed_block_start + blocksize;
+                    
+                    /* CRITICAL: Update the previous block's next pointer to point to our new block */
+                    microcon_emupool[prev_block_header_index + 2] = freed_block_start;
+                    
                     /* if there's remaining space after our allocation, set up next block */
                     if (gap > blocksize) {
                         microcon_emupool[freed_block_start + blocksize] = 0xAAAAAAAA;
                         microcon_emupool[freed_block_start + blocksize + 1] = freed_block_start + 3;
                         microcon_emupool[freed_block_start + blocksize + 2] = index;
+                    } else {
+                        /* Gap exactly fits - update current block's prev to point to our new block */
+                        microcon_emupool[index + 1] = freed_block_start + 3;
                     }
                     DEBUG_PRINTF("  -> Gap is large enough, reusing freed space at %u\n", freed_block_start);
+                    DEBUG_LOG_WRITE(prev_block_header_index + 2, 0, freed_block_start, "allocate_gap:update_prev_next");
                     DEBUG_LOG_WRITE(freed_block_start, 0, 0xAAAAAAAA, "allocate_gap:restore_magic");
                     DEBUG_LOG_WRITE(freed_block_start + 1, 0, prev_block_header_index + 3, "allocate_gap:restore_prev");
                     DEBUG_LOG_WRITE(freed_block_start + 2, 0, freed_block_start + blocksize, "allocate_gap:restore_next");
@@ -199,6 +207,8 @@ void* EmuPool_allocate_memory(uint32 size) {
                         DEBUG_LOG_WRITE(freed_block_start + blocksize, 0, 0xAAAAAAAA, "allocate_gap:split_magic");
                         DEBUG_LOG_WRITE(freed_block_start + blocksize + 1, 0, freed_block_start + 3, "allocate_gap:split_prev");
                         DEBUG_LOG_WRITE(freed_block_start + blocksize + 2, 0, index, "allocate_gap:split_next");
+                    } else {
+                        DEBUG_LOG_WRITE(index + 1, 0, freed_block_start + 3, "allocate_gap:update_curr_prev");
                     }
                     
                     result = &microcon_emupool[freed_block_start + 3];
@@ -346,12 +356,17 @@ void EmuPool_free_memory(void* ptr){
     // This leaves the next block pointing to the now-freed block, which allows
     // us to detect gaps during allocation by checking for this inconsistency
 
-    /* DO NOT clear the header - keep magic number valid so list traversal doesn't fail
-     * The block is freed by virtue of being removed from the forward linked list
-     * (previous block's next pointer now skips over this block)
-     * Gap detection during allocation will find this block by checking for 
-     * inconsistencies in prev/next pointers, not by checking for cleared magic */
-    DEBUG_PRINTF("  -> Block removed from active list, magic kept valid for traversal safety\n");
-    /* we do not clear the data area or header. The block is "freed" by being 
-     * removed from the forward traversal chain */
+    /* Clear the header to mark block as freed
+     * The coalescing logic needs magic==0 to detect freed blocks
+     * The forward chain should never point to freed blocks, so allocation won't see them */
+    uint32 old_magic = microcon_emupool[baseindex - 3];
+    uint32 old_prev = microcon_emupool[baseindex - 2];
+    uint32 old_next = microcon_emupool[baseindex - 1];
+    microcon_emupool[baseindex - 3] = 0;
+    microcon_emupool[baseindex - 2] = 0;
+    microcon_emupool[baseindex - 1] = 0;
+    DEBUG_LOG_WRITE(baseindex - 3, old_magic, 0, "free:clear_magic");
+    DEBUG_LOG_WRITE(baseindex - 2, old_prev, 0, "free:clear_prev");
+    DEBUG_LOG_WRITE(baseindex - 1, old_next, 0, "free:clear_next");
+    /* we do not clear the data area. it is not needed */
 }
