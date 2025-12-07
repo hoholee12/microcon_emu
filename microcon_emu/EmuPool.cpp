@@ -8,12 +8,13 @@
  * 1MB buffer
  * 
  * - header -
- * first 4byte: magic number for corruption detection (0xAAAAAAAA)
+ * first 4byte: magic number for corruption detection (0xAAAAAAAA for allocated, 0x0 for freed)
  * second 4byte: previous block's starting address + 3 (starting address without the header)
  * third 4byte: next block's starting address
  * 
  * if a middle block is freed, previous block's next pointer is set to the next of the freed block
- * freed block's next pointer is set to nullptr
+ * freed block's magic number is cleared to 0, next pointer is cleared to 0
+ * IMPORTANT: freed block's prev pointer is PRESERVED (not cleared) for coalescing logic
  * ending address + 1 is the address to the first byte of previous block (needed to traverse backwards)
  * so for the single block, [0] is a magic number, [1] is previous block's starting address, [2] is next block's starting address, [3] is first byte of this block.
  *
@@ -50,6 +51,7 @@
  * allocation always goes left -> right. it does not go reverse. we can use this fact to indicate an empty gap.
  * when we dealloc block B (between A and C):
  * block A -> update A's next pointer to point to block C (skip over freed B)
+ * block B -> clear magic to 0, clear next to 0, but KEEP prev pointer
  * block C -> do NOT update C's prev pointer (still points to nonexistent block B)
  * 
  * Gap detection during allocation:
@@ -61,10 +63,17 @@
  * Block coalescing during deallocation:
  * Before marking a block as freed, check if adjacent blocks are already free:
  * 1. Check previous: if prev_block.next != our_header_addr, there's a gap before us
+ *    - If prev_block.next == 0, the previous block is freed (walk backwards through chain)
+ *    - Walk backwards using preserved prev pointers until we find an allocated block (magic == 0xAAAAAAAA)
+ *    - This handles chains of multiple consecutive freed blocks
  * 2. Check next: if next_block.magic == 0, the next block is already freed
- * 3. When coalescing, update forward links to skip over all freed blocks
- * 4. Example: A -> [freed B] -> [to-free C] -> D becomes A -> D
+ *    - Scan forward through consecutive freed blocks to find the final next pointer
+ * 3. When coalescing, update forward links to skip over all freed blocks in the chain
+ * 4. Example: A -> [freed B] -> [freed C] -> [to-free D] -> E becomes A -> E
+ *    - When freeing D, walk backwards through C and B to find A
+ *    - Update A's next pointer to point to E, skipping over B, C, and D
  * 5. This creates larger contiguous free spaces for bigger allocations
+ * 6. The preserved prev pointers in freed blocks enable this backward traversal
  */
 
 uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];
