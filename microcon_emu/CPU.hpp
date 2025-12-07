@@ -25,44 +25,45 @@
 */
 
 struct APSR_t{
-	uint32 N			: 1;
-	uint32 Z			: 1;
-	uint32 C			: 1;
-	uint32 V			: 1;
-	uint32 Q			: 1;
-	uint32 notmine1		: 7;
-	uint32 GE3			: 1;
-	uint32 GE2			: 1;
-	uint32 GE1			: 1;
-	uint32 GE0			: 1;
-	uint32 notmine0		: 16;
+	uint32 notmine0		: 16;  // bits [15:0] - reserved
+	uint32 GE0			: 1;   // bit [16] - Greater-Equal [0] (DSP extension)
+	uint32 GE1			: 1;   // bit [17] - Greater-Equal [1] (DSP extension)
+	uint32 GE2			: 1;   // bit [18] - Greater-Equal [2] (DSP extension)
+	uint32 GE3			: 1;   // bit [19] - Greater-Equal [3] (DSP extension)
+	uint32 notmine1		: 7;   // bits [26:20] - reserved
+	uint32 Q			: 1;   // bit [27] - Saturation flag (DSP extension)
+	uint32 V			: 1;   // bit [28] - Overflow flag (signed)
+	uint32 C			: 1;   // bit [29] - Carry flag (unsigned overflow/borrow)
+	uint32 Z			: 1;   // bit [30] - Zero flag
+	uint32 N			: 1;   // bit [31] - Negative flag
 };
 
 struct IPSR_t{
-	uint32 notmine0		: 23;
-	uint32 exception	: 9;
+	uint32 exception	: 9;   // bits [8:0] - exception number
+	uint32 notmine0		: 23;  // bits [31:9] - reserved
 };
 
 struct EPSR_t{
-	uint32 notmine2		: 5;
-	uint32 ICIT1		: 2;
-	uint32 T			: 1;
-	uint32 notmine1		: 8;
-	uint32 ICIT0		: 6;
-	uint32 notmine0		: 10;
+	uint32 notmine0		: 10;  // bits [9:0] - reserved
+	uint32 ICIT0		: 6;   // bits [15:10] - ICI/IT bits[5:0]
+	uint32 notmine1		: 8;   // bits [23:16] - reserved
+	uint32 T			: 1;   // bit [24] - Thumb state (always 1 for ARMv7-M)
+	uint32 ICIT1		: 2;   // bits [26:25] - ICI/IT bits[7:6]
+	uint32 notmine2		: 5;   // bits [31:27] - reserved
 };
 
 union xPSR_t {
 	struct APSR_t APSR;
 	struct IPSR_t IPSR;
 	struct EPSR_t EPSR;
+	uint32 raw;  // Added for direct access
 };
 
 struct CONTROL_t {
-	uint32 nPRIV		: 1;
-	uint32 SPSEL		: 1;
-	uint32 FPCA			: 2;
-	uint32 notmine0		: 28;
+	uint32 nPRIV		: 1;   // bit [0] - Thread mode privilege level
+	uint32 SPSEL		: 1;   // bit [1] - Stack pointer selection
+	uint32 FPCA			: 1;   // bit [2] - FP context active (FIXED: was 2 bits, should be 1)
+	uint32 notmine0		: 29;  // bits [31:3] - reserved (FIXED: was 28, now 29)
 };
 
 struct CPU_struct_reg {
