@@ -1,7 +1,7 @@
 #pragma once
 #include "Proxy.hpp"
 
-#define MORE_DEBUG_LOGS // Uncomment to enable detailed debug logs
+// #define EMUPOOL_DEBUG_LOGS // Uncomment to enable detailed debug logs
 #define EMUPOOL_BUFFER_SIZE 0x1000000	// 1MB buffer
 // one bit per 1KB block
 extern uint32 microcon_emupool[EMUPOOL_BUFFER_SIZE];

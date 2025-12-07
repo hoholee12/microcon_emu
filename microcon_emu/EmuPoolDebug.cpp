@@ -2,7 +2,7 @@
 #include "EmuPool.hpp"
 #include <ctime>
 
-#ifdef MORE_DEBUG_LOGS
+#ifdef EMUPOOL_DEBUG_LOGS
 
 // Allocated block tracking
 struct AllocatedBlock {

@@ -277,37 +277,79 @@ void EmuPool_free_memory(void* ptr){
     uint32 final_prevblock_startaddr = prevblock_startaddr;
     uint32 final_nextblock_startaddr = nextblock_startaddr;
     
+    DEBUG_PRINTF("  -> Coalescing check: prevblock_startaddr=%u, nextblock_startaddr=%u\n", 
+           prevblock_startaddr, nextblock_startaddr);
+    
     // Check if previous block is free by examining if there's a gap before this block
     if (prevblock_startaddr != 0) {
         uint32 prev_block_header = prevblock_startaddr - 3;
         uint32 prev_block_next = microcon_emupool[prev_block_header + 2];
         uint32 expected_next = baseindex - 3; // our block's header address
         
+        DEBUG_PRINTF("  -> Prev block check: header=%u, next=%u, expected_next=%u\n",
+               prev_block_header, prev_block_next, expected_next);
+        
         if (prev_block_next != expected_next) {
             // There's a gap before us! Find the start of the free region
             uint32 scan_addr = prev_block_next;
             
-            // Scan backwards through consecutive free blocks to find the start of free region
-            while (scan_addr != 0 && microcon_emupool[scan_addr] == 0) {
-                uint32 scan_prev = microcon_emupool[scan_addr + 1];
-                if (scan_prev == 0) break; // reached the beginning
+            // If prev_block_next is 0, it means the previous block was freed and cleared
+            // In this case, we need to find the actual allocated block before it
+            if (scan_addr == 0) {
+                // The previous block is freed. Walk backwards through the chain of freed blocks
+                // until we find an allocated block
+                uint32 walk_addr = prev_block_header;
+                DEBUG_PRINTF("  -> Previous block is freed (next=0), walking backwards from header %u\n", walk_addr);
                 
-                uint32 scan_prev_header = scan_prev - 3;
-                uint32 scan_prev_next = microcon_emupool[scan_prev_header + 2];
-                
-                if (scan_prev_next == scan_addr) {
-                    // Previous block points directly to this scan position - no gap before it
-                    break;
-                } else {
-                    // Continue scanning backward
-                    scan_addr = scan_prev_next;
+                while (walk_addr != 0 && microcon_emupool[walk_addr] == 0) {
+                    // This block is freed, get its prev pointer
+                    uint32 walk_prev_data = microcon_emupool[walk_addr + 1];
+                    if (walk_prev_data == 0) {
+                        DEBUG_PRINTF("  -> ERROR: Reached a freed block with prev=0 at header %u\n", walk_addr);
+                        break;
+                    }
+                    uint32 walk_prev_header = walk_prev_data - 3;
+                    DEBUG_PRINTF("  -> Freed block at %u points to prev data %u (header %u)\n", 
+                           walk_addr, walk_prev_data, walk_prev_header);
+                    
+                    // Check if the previous block is allocated
+                    if (microcon_emupool[walk_prev_header] == 0xAAAAAAAA) {
+                        // Found an allocated block!
+                        final_prevblock_startaddr = walk_prev_data;
+                        DEBUG_PRINTF("  -> Found allocated block at data %u (header %u)\n", 
+                               walk_prev_data, walk_prev_header);
+                        break;
+                    }
+                    // Previous block is also freed, continue walking
+                    walk_addr = walk_prev_header;
                 }
-            }
-            
-            if (scan_addr != 0 && microcon_emupool[scan_addr] == 0) {
-                DEBUG_PRINTF("  -> Coalescing with previous free region starting at %u\n", scan_addr);
-                // Found the start of free region, use its previous block
-                final_prevblock_startaddr = microcon_emupool[scan_addr + 1];
+                
+                if (final_prevblock_startaddr == prevblock_startaddr) {
+                    DEBUG_PRINTF("  -> ERROR: Could not find allocated block in freed chain!\n");
+                }
+            } else {
+                // Scan backwards through consecutive free blocks to find the start of free region
+                while (scan_addr != 0 && microcon_emupool[scan_addr] == 0) {
+                    uint32 scan_prev = microcon_emupool[scan_addr + 1];
+                    if (scan_prev == 0) break; // reached the beginning
+                    
+                    uint32 scan_prev_header = scan_prev - 3;
+                    uint32 scan_prev_next = microcon_emupool[scan_prev_header + 2];
+                    
+                    if (scan_prev_next == scan_addr) {
+                        // Previous block points directly to this scan position - no gap before it
+                        break;
+                    } else {
+                        // Continue scanning backward
+                        scan_addr = scan_prev_next;
+                    }
+                }
+                
+                if (scan_addr != 0 && microcon_emupool[scan_addr] == 0) {
+                    DEBUG_PRINTF("  -> Coalescing with previous free region starting at %u\n", scan_addr);
+                    // Found the start of free region, use its previous block
+                    final_prevblock_startaddr = microcon_emupool[scan_addr + 1];
+                }
             }
         }
     }
@@ -357,16 +399,17 @@ void EmuPool_free_memory(void* ptr){
     // us to detect gaps during allocation by checking for this inconsistency
 
     /* Clear the header to mark block as freed
-     * The coalescing logic needs magic==0 to detect freed blocks
+     * IMPORTANT: We only clear magic and next, but KEEP the prev pointer!
+     * The prev pointer is needed for coalescing when freeing adjacent blocks.
+     * The coalescing logic needs magic==0 to detect freed blocks.
      * The forward chain should never point to freed blocks, so allocation won't see them */
     uint32 old_magic = microcon_emupool[baseindex - 3];
-    uint32 old_prev = microcon_emupool[baseindex - 2];
     uint32 old_next = microcon_emupool[baseindex - 1];
-    microcon_emupool[baseindex - 3] = 0;
-    microcon_emupool[baseindex - 2] = 0;
-    microcon_emupool[baseindex - 1] = 0;
+    microcon_emupool[baseindex - 3] = 0; // Clear magic
+    // microcon_emupool[baseindex - 2] = 0; // DO NOT clear prev - we need it for coalescing!
+    microcon_emupool[baseindex - 1] = 0; // Clear next
     DEBUG_LOG_WRITE(baseindex - 3, old_magic, 0, "free:clear_magic");
-    DEBUG_LOG_WRITE(baseindex - 2, old_prev, 0, "free:clear_prev");
     DEBUG_LOG_WRITE(baseindex - 1, old_next, 0, "free:clear_next");
+    DEBUG_PRINTF("  -> Freed block header: magic cleared, prev kept (%u), next cleared\n", microcon_emupool[baseindex - 2]);
     /* we do not clear the data area. it is not needed */
 }

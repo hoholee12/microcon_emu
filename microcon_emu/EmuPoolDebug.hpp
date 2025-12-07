@@ -1,7 +1,7 @@
 #pragma once
 #include "Proxy.hpp"
 
-#ifdef MORE_DEBUG_LOGS
+#ifdef EMUPOOL_DEBUG_LOGS
 
 // Forward declaration
 extern uint32 microcon_emupool[];
