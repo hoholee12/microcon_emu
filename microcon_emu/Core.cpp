@@ -12,30 +12,30 @@ int test_peri3_count = 0;
 int test_peri4_count = 0;
 
 void test_pericpu() {
-    // printf("pericpu executing... the time is: %d\n", Clock_currenttime());
+    printf("pericpu executing... the time is: %d\n", Clock_currenttime());
     test_pericpu_count += 1;
 }
 void test_peri0() {
-    // printf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
+    printf("mul0 -> peri0 executing... the time is: %d\n", Clock_currenttime());
     test_peri0_count += 1;
-    // printf("peri0: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    printf("peri0: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri1() {
-    // printf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
+    printf("mul0 -> peri1 executing... the time is: %d\n", Clock_currenttime());
     test_peri1_count += 1;
-    // printf("peri1: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    printf("peri1: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri2() {
-    // printf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
+    printf("mul1 -> peri2 executing... the time is: %d\n", Clock_currenttime());
     test_peri2_count += 1;
-    // printf("peri2: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
+    printf("peri2: Clock_var_hintcycles: %d\n", CLOCK_GET_AVAILABLE_CYCLES());
 }
 void test_peri3() {
-    // printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
+    printf("mul1 -> peri3 executing... the time is: %d\n", Clock_currenttime());
     test_peri3_count += 1;
 
-    // printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d, Clock_var_hintcycles: %d\n", test_pericpu_count, 
-    // 	test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count, CLOCK_GET_AVAILABLE_CYCLES());
+    printf("counting result: cpu: %d, peri0(0.7): %d, peri1(0.7): %d, peri2(0.3): %d, peri3(0.5): %d, Clock_var_hintcycles: %d\n", test_pericpu_count, 
+    	test_peri0_count, test_peri1_count, test_peri2_count, test_peri3_count, CLOCK_GET_AVAILABLE_CYCLES());
     // TODO: clock drift test (must not drift, otherwise accuracy is at stake!)
 
     CLOCK_SET_USE_CYCLES = CLOCK_GET_AVAILABLE_CYCLES();
@@ -54,38 +54,38 @@ void test_peri3() {
     if (Core_var_Memory_init) {
         uint8* dat;
         // memory check
-        // printf("memory read on 0x20000000, it should work\n");
+        printf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
-        // printf("memory write on 0x20000000, it should work\n");
+        if (dat != NULL) printf("val = %02x\n", *dat);
+        printf("memory write on 0x20000000, it should work\n");
         Memory_write(0x20000000, Memory_enum_size::u8, 0x12, MEMORY_ATTRIB_S_W);
 
-        // printf("memory read on 0x20000000, it should work\n");
+        printf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
 
-        // printf("memory read on 0x1FFFFFFF, it should NOT work\n");
+        printf("memory read on 0x1FFFFFFF, it should NOT work\n");
         dat = (uint8*)Memory_read(0x1FFFFFFF, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
 
-        // printf("memory read on 0x20000000 with wrong attribute, it should NOT work\n");
+        printf("memory read on 0x20000000 with wrong attribute, it should NOT work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_U_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
 
         // 32bit memory access check
 
-        // printf("memory write on 0x20000000, it should work\n");
+        printf("memory write on 0x20000000, it should work\n");
         Memory_write(0x20000000, Memory_enum_size::u32, 0xDEADBEEF, MEMORY_ATTRIB_S_R);
 
-        // printf("memory read on 0x20000000, it should work\n");
+        printf("memory read on 0x20000000, it should work\n");
         dat = (uint8*)Memory_read(0x20000000, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000001, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000002, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
         dat = (uint8*)Memory_read(0x20000003, Memory_enum_size::u8, MEMORY_ATTRIB_S_R);
-        // if (dat != NULL) printf("val = %02x\n", *dat);
+        if (dat != NULL) printf("val = %02x\n", *dat);
 
         // memory write supported upto 4 byte writes in little-endian. only 1 byte supported for read.
 

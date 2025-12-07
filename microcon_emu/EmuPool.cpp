@@ -84,8 +84,7 @@ void* EmuPool_allocate_memory(uint32 size) {
 
     uint32 curr_header_prevblock_startaddr = 0;
     uint32 curr_header_nextblock_startaddr = 0;
-    uint32 prev_header_prevblock_startaddr = 0;
-    uint32 prev_header_nextblock_startaddr = 0;
+    uint32 prev_block_header_index = 0; // Track the previous block's header address
 
     void* result = NULL;
     uint32 search_iteration = 0;
@@ -97,11 +96,13 @@ void* EmuPool_allocate_memory(uint32 size) {
         microcon_emupool[2] = blocksize;
         microcon_emupool[blocksize] = 0xAAAAAAAA;
         microcon_emupool[blocksize + 1] = 0x3;
+        microcon_emupool[blocksize + 2] = 0; /* end marker has next = 0 */
         DEBUG_LOG_WRITE(0, 0, 0xAAAAAAAA, "first_allocation:magic");
         DEBUG_LOG_WRITE(1, 0, 0, "first_allocation:prev");
         DEBUG_LOG_WRITE(2, 0, blocksize, "first_allocation:next");
         DEBUG_LOG_WRITE(blocksize, 0, 0xAAAAAAAA, "first_allocation:next_magic");
         DEBUG_LOG_WRITE(blocksize + 1, 0, 0x3, "first_allocation:next_prev");
+        DEBUG_LOG_WRITE(blocksize + 2, 0, 0, "first_allocation:next_next");
 
         result = &microcon_emupool[3];
         DEBUG_REGISTER_BLOCK(3, size);
@@ -138,15 +139,18 @@ void* EmuPool_allocate_memory(uint32 size) {
         /* one iteration */
         /* check if we are at the position of the last + 1 block */
         if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr == 0x0){
-            /* start adding new block */
-            microcon_emupool[index + 2] = index + blocksize;
-            /* pre-init for next block */
+            /* We found the end marker. Convert it to a real block and create new end marker. */
+            /* Current block at 'index' will become our new allocated block */
+            microcon_emupool[index + 2] = index + blocksize; /* update next pointer to new end marker */
+            /* Create new end marker */
             microcon_emupool[index + blocksize] = 0xAAAAAAAA;
-            microcon_emupool[index + blocksize + 1] = index + 3;
+            microcon_emupool[index + blocksize + 1] = index + 3; /* prev points to our new block's data */
+            microcon_emupool[index + blocksize + 2] = 0; /* next is 0 (end marker) */
             DEBUG_PRINTF("  -> Found end of list, allocating new block at end\n");
             DEBUG_LOG_WRITE(index + 2, 0, index + blocksize, "allocate_last:next");
             DEBUG_LOG_WRITE(index + blocksize, 0, 0xAAAAAAAA, "allocate_last:new_magic");
             DEBUG_LOG_WRITE(index + blocksize + 1, 0, index + 3, "allocate_last:new_prev");
+            DEBUG_LOG_WRITE(index + blocksize + 2, 0, 0, "allocate_last:new_next");
             
             result = &microcon_emupool[index + 3];
             DEBUG_REGISTER_BLOCK(index + 3, size);
@@ -164,9 +168,12 @@ void* EmuPool_allocate_memory(uint32 size) {
             /* Gap detection: if current block's prev pointer doesn't point to where we expect,
              * there's a freed block in between. The freed block's address should be what 
              * the current block is pointing to as its previous block. */
-            uint32 expected_prev_addr = prev_header_nextblock_startaddr + 3; // where previous block's data starts
             
-            if (curr_header_prevblock_startaddr != expected_prev_addr) {
+            /* Skip gap detection for the very first block (index 0) since it has no previous block */
+            if (search_iteration > 0) {
+                uint32 expected_prev_addr = prev_block_header_index + 3; // where previous block's data starts
+                
+                if (curr_header_prevblock_startaddr != expected_prev_addr) {
                 /* There's a gap! The freed block starts at curr_header_prevblock_startaddr - 3 (header) */
                 uint32 freed_block_start = curr_header_prevblock_startaddr - 3;
                 uint32 gap = index - freed_block_start; /* gap size from freed block start to current block start */
@@ -176,7 +183,7 @@ void* EmuPool_allocate_memory(uint32 size) {
                 if (gap >= blocksize) {
                 /* we have enough space to insert a new block here */
                     microcon_emupool[freed_block_start] = 0xAAAAAAAA;
-                    microcon_emupool[freed_block_start + 1] = prev_header_nextblock_startaddr + 3;
+                    microcon_emupool[freed_block_start + 1] = prev_block_header_index + 3;
                     microcon_emupool[freed_block_start + 2] = freed_block_start + blocksize;
                     /* if there's remaining space after our allocation, set up next block */
                     if (gap > blocksize) {
@@ -186,7 +193,7 @@ void* EmuPool_allocate_memory(uint32 size) {
                     }
                     DEBUG_PRINTF("  -> Gap is large enough, reusing freed space at %u\n", freed_block_start);
                     DEBUG_LOG_WRITE(freed_block_start, 0, 0xAAAAAAAA, "allocate_gap:restore_magic");
-                    DEBUG_LOG_WRITE(freed_block_start + 1, 0, prev_header_nextblock_startaddr + 3, "allocate_gap:restore_prev");
+                    DEBUG_LOG_WRITE(freed_block_start + 1, 0, prev_block_header_index + 3, "allocate_gap:restore_prev");
                     DEBUG_LOG_WRITE(freed_block_start + 2, 0, freed_block_start + blocksize, "allocate_gap:restore_next");
                     if (gap > blocksize) {
                         DEBUG_LOG_WRITE(freed_block_start + blocksize, 0, 0xAAAAAAAA, "allocate_gap:split_magic");
@@ -208,15 +215,13 @@ void* EmuPool_allocate_memory(uint32 size) {
                     /* Gap too small, keep looking */
                     DEBUG_PRINTF("  -> Gap too small (need %u), continuing search\n", blocksize);
                 }
+                }
             }
         }
 
         /* update index to the next block */
+        prev_block_header_index = index; // Save current index before moving to next
         index = curr_header_nextblock_startaddr;
-
-        /* update previous entry info */
-        prev_header_prevblock_startaddr = curr_header_prevblock_startaddr;
-        prev_header_nextblock_startaddr = curr_header_nextblock_startaddr;
 
         search_iteration++;
     }
@@ -341,15 +346,12 @@ void EmuPool_free_memory(void* ptr){
     // This leaves the next block pointing to the now-freed block, which allows
     // us to detect gaps during allocation by checking for this inconsistency
 
-    /* clear the header */
-    uint32 old_magic = microcon_emupool[baseindex - 3];
-    uint32 old_prev = microcon_emupool[baseindex - 2];
-    uint32 old_next = microcon_emupool[baseindex - 1];
-    microcon_emupool[baseindex - 3] = 0;
-    microcon_emupool[baseindex - 2] = 0;
-    microcon_emupool[baseindex - 1] = 0;
-    DEBUG_LOG_WRITE(baseindex - 3, old_magic, 0, "free:clear_magic");
-    DEBUG_LOG_WRITE(baseindex - 2, old_prev, 0, "free:clear_prev");
-    DEBUG_LOG_WRITE(baseindex - 1, old_next, 0, "free:clear_next");
-    /* we do not clear the data area. it is not needed */
+    /* DO NOT clear the header - keep magic number valid so list traversal doesn't fail
+     * The block is freed by virtue of being removed from the forward linked list
+     * (previous block's next pointer now skips over this block)
+     * Gap detection during allocation will find this block by checking for 
+     * inconsistencies in prev/next pointers, not by checking for cleared magic */
+    DEBUG_PRINTF("  -> Block removed from active list, magic kept valid for traversal safety\n");
+    /* we do not clear the data area or header. The block is "freed" by being 
+     * removed from the forward traversal chain */
 }
