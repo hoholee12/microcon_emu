@@ -100,7 +100,7 @@ void Clock_init()
 
 static inline void Clock_pause_sleep() {
 	while (Clock_var_wake == 0) {
-		Sleep(100);	// explicit wait state is better than just yielding
+		Clock_sleep(100);	// explicit wait state is better than just yielding
 	}
 }
 
@@ -131,34 +131,25 @@ void Clock_body_main()
 		// recalculate simclock when clock scheduler has regenerated.
 		/*
 		* we need to scale the bn and bi according to the new Clock_var_totalsimclock value.
-		* 
-		* integer only (multiply by 100)
-		* 
-		* bn * Clock_var_maxtickrate_prev + bi = prev_bpos = previous position on the tape (1234)
-		* Clock_var_totalsimclock_prev = previous tape size (5000)
-		* 
-		* Clock_var_totalsimclock = regenerated tape size (7500)
-		* cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev (7500 * 100 / 5000 = 150) (100th percentile)
-		* cur_bpos = prev_bpos * cur_percentage / 100 (1234 * 150 / 100 = 1851)
+		* let: totalsimclock_prev = 1000, totalsimclock = 1500, simclockcurrent = 900
+		* simclockcurrent = 900 * 1500 / 1000 = 1350
+		* ticks_executed_this_second = 1500 - 1350 = 150 (simclockcurrent is a countdown counter; so 1350 ticks is what we have not counted yet)
+		* bn = ticks_executed_this_second / Clock_var_maxtickrate
+		* bi = ticks_executed_this_second - (bn * Clock_var_maxtickrate)
 		*/
 		if (Clock_var_poweron_count != Clock_var_poweron_prevcount) {
 			Clock_var_poweron_prevcount = Clock_var_poweron_count;
 			Clock_var_totalsimclock = Clock_var_maxtickrate * Clock_var_tickratemul;
 
-			// TODO - figure out why this causes huge drift forward
-			// simclockloopcount = control_fps;
-			simclockcurrent = Clock_var_totalsimclock;
+			// scale simclockcurrent: (current_remaining * new_total) / old_total
+			simclockcurrent = (simclockcurrent * Clock_var_totalsimclock) / Clock_var_totalsimclock_prev;
+
+			// total ticks that should have been executed = totalsimclock - simclockcurrent
+			uint32 ticks_executed_this_second = Clock_var_totalsimclock - simclockcurrent;
 			
-			uint32 prev_bpos = bn * Clock_var_maxtickrate_prev + bi;
-			uint32 cur_percentage = (Clock_var_totalsimclock_prev != 0) 
-				? (Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev) 
-				: 100;
-			uint32 cur_bpos = prev_bpos * cur_percentage / 100;
-
-			// now we calculate the individual bn, bi
-			bn = cur_bpos / Clock_var_maxtickrate;
-			bi = cur_bpos - (cur_bpos / Clock_var_maxtickrate) * Clock_var_maxtickrate; /* cur_bpos % Clock_var_maxtickrate */
-
+			// convert executed ticks to tape position (bn, bi)
+			bn = ticks_executed_this_second / Clock_var_maxtickrate;
+			bi = ticks_executed_this_second - (bn * Clock_var_maxtickrate);
 		}
 
 		// wait until clock regen finished
@@ -232,7 +223,7 @@ void Clock_body_main()
 		Clock_pause_sleep();	// user pauses simulation (infloop until resume)
 
 		// sleep for control
-		Sleep(sleep_for);
+		Clock_sleep(sleep_for);
 		Clock_var_sleepfor = sleep_for;	// update telemetry
 
 		/* clock time gets measured here
@@ -363,8 +354,9 @@ void Clock_body_sub(int _cyclecountdown, uint32* tn, uint32* ti) {
 
 					// if end of tape, get to the next interation
 					if (Clock_schedule_linkvect[i] == 0) {
-						cyclecountdown -= (Clock_var_maxtickrate + 1 - i);
-						Clock_var_tick += (Clock_var_maxtickrate + 1 - i);	// will be optimized out by any decent compiler
+						// -1 to complement ONE CYCLE (i=0)
+						cyclecountdown -= (Clock_var_maxtickrate - 1 - i);
+						Clock_var_tick += (Clock_var_maxtickrate - 1 - i);	// will be optimized out by any decent compiler
 						break;	// i is reset
 					}
 
