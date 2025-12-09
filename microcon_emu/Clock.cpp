@@ -397,7 +397,7 @@ void Clock_resume() {
 void Clock_add(uint32 index, Clock_struct* clock_obj) 
 {
 	// sanity check
-	if (index < 0 && index >= CLOCK_MAX_SCHEDULE_SIZE) {
+	if (index >= CLOCK_MAX_SCHEDULE_SIZE) {
 		m_assert(false, "clock obj index out of range!\n");
 	}
 
@@ -421,7 +421,7 @@ void Clock_add(uint32 index, Clock_struct* clock_obj)
 void Clock_replace(uint32 index, Clock_struct* clock_obj)
 {
 	// sanity check
-	if (index < 0 && index >= CLOCK_MAX_SCHEDULE_SIZE) {
+	if (index >= CLOCK_MAX_SCHEDULE_SIZE) {
 		m_assert(false, "clock obj index out of range!\n");
 	}
 
