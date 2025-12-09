@@ -150,7 +150,9 @@ void Clock_body_main()
 			simclockcurrent = Clock_var_totalsimclock;
 			
 			uint32 prev_bpos = bn * Clock_var_maxtickrate_prev + bi;
-			uint32 cur_percentage = Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev;
+			uint32 cur_percentage = (Clock_var_totalsimclock_prev != 0) 
+				? (Clock_var_totalsimclock * 100 / Clock_var_totalsimclock_prev) 
+				: 100;
 			uint32 cur_bpos = prev_bpos * cur_percentage / 100;
 
 			// now we calculate the individual bn, bi
