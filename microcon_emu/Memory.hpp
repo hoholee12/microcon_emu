@@ -2,9 +2,9 @@
 
 #include "Proxy.hpp"
 
-
 // basic memory map for armv7m emulation
-
+/* this is not meant to be an interface for the debugger. this is only for the base cpu and peripherals */
+/* we need another separate subsystem for emulating jtag and debugging */
 // memory write supported upto 4 byte writes in little-endian. only 1 byte supported for read.
 
 /* we ignore cache for now
@@ -36,6 +36,53 @@ struct Memory_map_elem {
 	//struct Memory_map_elem* prev;
 };
 
+/*
+* section for peripheral memory access
+*
+* every cycle is scheduled (since its supposed to be a cycle accurate emulator)
+* just like cpu, peripheral cycle is also explicit, meaning it will always run and have time to update in realtime.
+* making this subsystem as an interrupt scheduling will be very complex.
+* so we will make it a one time access flag system. (and make the access a queue per address)
+* (make a callback function registerable too)
+*
+* - right now the memory map is maintained with a list of separately allocated sections.
+* we shall add an operation queue head per section Memory_map_elem->opqueue
+* when the cpu reads / writes to memory -> simple
+* when the cpu reads / writes to peripheral memory -> not simple; depending on specs, the write may be ignored
+* or the read data may be different depending on context(user/super)
+*
+* - we will have multiple peripherals operating on the same section. what to do with a single queue?
+* - we can't do queue per memory address. thats going to consume massive resource.
+* - however, we can do queue per peripherals.
+* we shall make a separate pointer that holds a map of peripheral indexes that has been registered in that section.
+*
+* 1. when launching, each peripherals shall register themselves into that map with specific indexes.
+* - Memory_peri_register(index, array of addresses that the peri uses, read callback function)
+*
+* 2. while running, cpu access the peripheral section:
+* - Memory_write(addr, sizetype, data, attrib) -> check attrib of the section (its a peripheral) -> Memory_write_peri(addr, sizetype, data)
+* -> linear search over peri register map (check address) and find match -> Memory_queue_peri(peri_idx, addr, sizetype, data)
+* -> it is queued in linear fashion.
+*
+* - Memory_read(addr, sizetype, attrib) -> check attrib of the section -> Memory_read_peri(addr, sizetype, data)
+* -> linear search over peri register map (check address) and find match -> read callback is executed 
+* -> may check cpu state, return value, writeback to memory via Memory_write(with super attrib)
+* (no queue access for reads)
+*
+* 3. while running, peripheral handle the write queue:
+* - peripheral code shall call Memory_handle_writequeue_peri(peri_idx, write callback function) 
+* -> this function iterates the queue of the peri and calls the write callback with the parameter (addr, sizetype, data, attrib) per iteration
+* -> and the callback function decides whether to write or nay using Memory_write(with super attrib)
+*/
+
+
+/*
+* TODOs:
+* - address race conditions of the memory access when we are to implement multicore in this emulator.
+* - bus error if wrongly accessed in peripheral section
+* - sync op for readback (with the current design, we dont have that)
+* - 
+*/
 
 // variables
 #define MEMORY_MAP_MAX_SECTIONS 10
