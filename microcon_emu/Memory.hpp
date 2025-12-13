@@ -68,20 +68,30 @@ struct Memory_map_elem {
 * -> linear search over peri register map (check address) and find match -> read callback is executed 
 * -> may check cpu state, return value, writeback to memory via Memory_write(with super attrib)
 * (no queue access for reads)
+* - read callback function returns two things: <value, 0> or <0, stall status> -> if stall, cpu will do nothing.
+* - read callback function when stalling: internal cpu var (Memory_cpu_stall_flag) to notify stall for peri.
+* - and then save the current read position via Memory_cpu_stall_context.
+* - next cycle, if Memory_cpu_stall_flag is still 1, do nothing.
+* - next cycle, if Memory_cpu_stall_flag turned 2, Memory_read(using Memory_cpu_stall_context, and with super attrib)
+* - and then reset the flag to 0
 *
 * 3. while running, peripheral handle the write queue:
 * - peripheral code shall call Memory_handle_writequeue_peri(peri_idx, write callback function) 
 * -> this function iterates the queue of the peri and calls the write callback with the parameter (addr, sizetype, data, attrib) per iteration
 * -> and the callback function decides whether to write or nay using Memory_write(with super attrib)
+*
+* 3-1. while running, peripheral handle the read stall:
+* - peripheral code then checks Memory_cpu_stall_flag. sets internal var for stall counter.
+* - every cycle, the stall counter decreases. if it reaches zero, Memory_cpu_stall_flag becomes 2 
+* (to notify cpu that it just came out of the stall and need to readback)
 */
-
 
 /*
 * TODOs:
 * - address race conditions of the memory access when we are to implement multicore in this emulator.
 * - bus error if wrongly accessed in peripheral section
-* - sync op for readback (with the current design, we dont have that)
-* - 
+* - Memory read / write can be word sized - need a range checker to make sure if there are peri overlaps,
+* its going to spit out bus error
 */
 
 // variables
