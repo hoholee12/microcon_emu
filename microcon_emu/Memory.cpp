@@ -60,9 +60,33 @@ void Memory_init() {
 	Memory_addMap(0x0, 0x20000, MEMORY_ATTRIB_S_ALL);
 	// SRAM
 	Memory_addMap(0x20000000, 0x20000, MEMORY_ATTRIB_S_ALL);
+	// Peripheral
+	Memory_addMap(0xE0000000, 0x20000000, MEMORY_ATTRIB_S_ALL);
 
+	Memory_init_peri(); // temporary. delete this later.
 
+}
 
+void systick(){
+	// do something here
+}
+
+void Memory_init_peri(){
+	// systick
+	struct peri_addr_t temp;
+	temp.peri_arr = emalloc(4, sizeof(uint32));
+	temp.peri_arr_size = 4;
+	temp.peri_arr[0] = 0xE000E010; // SYST_CSR
+	temp.peri_arr[1] = 0xE000E014; // SYST_RVR
+	temp.peri_arr[2] = 0xE000E018; // SYST_CVR
+	temp.peri_arr[3] = 0xE000E01C; // SYST_CALIB
+
+	Memory_addPeri(0, &temp, &systick);
+}
+
+void Memory_addPeri(uint32 idx, struct peri_addr_t* peri_addr, void (*readcallback)(void)){
+	// find allocated map from the maplist
+	
 }
 
 Memory_map_elem* Memory_getMap(uint32 addr) {

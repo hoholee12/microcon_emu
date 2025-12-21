@@ -25,6 +25,17 @@
 // typedefs / enums
 
 enum Memory_enum_size {u8, u16, u32};
+
+struct peri_addr_t{
+	uint32* peri_arr;
+	uint32 peri_arr_size;
+};
+
+struct opqueue_t {
+	struct peri_addr_t peri_addr;
+	uint32 peri_idx;
+};
+
 struct Memory_map_elem {
 	uint32 base;
 	uint32 size;
@@ -33,7 +44,8 @@ struct Memory_map_elem {
 	uint8* data;	// malloc memory (uint8 for byte access)
 	// for quicker access to next map
 	struct Memory_map_elem* next;
-	//struct Memory_map_elem* prev;
+	// opqueue
+	struct opqueue_t* opqueuehead;
 };
 
 /*
@@ -57,7 +69,7 @@ struct Memory_map_elem {
 * we shall make a separate pointer that holds a map of peripheral indexes that has been registered in that section.
 *
 * 1. when launching, each peripherals shall register themselves into that map with specific indexes.
-* - Memory_peri_register(index, array of addresses that the peri uses, read callback function)
+* - Memory_addPeri(index, array of addresses that the peri uses, read callback function)
 *
 * 2. while running, cpu access the peripheral section:
 * - Memory_write(addr, sizetype, data, attrib) -> check attrib of the section (its a peripheral) -> Memory_write_peri(addr, sizetype, data)
@@ -86,13 +98,6 @@ struct Memory_map_elem {
 * (to notify cpu that it just came out of the stall and need to readback)
 */
 
-/*
-* TODOs:
-* - address race conditions of the memory access when we are to implement multicore in this emulator.
-* - bus error if wrongly accessed in peripheral section
-* - Memory read / write can be word sized - need a range checker to make sure if there are peri overlaps,
-* its going to spit out bus error
-*/
 
 // variables
 #define MEMORY_MAP_MAX_SECTIONS 10
@@ -144,14 +149,53 @@ extern void Memory_addMap(uint32 base, uint32 size, uint32 attrib);
 extern void Memory_init();
 
 
+// peripheral setup (user should do this)
+extern void Memory_init_peri();
+
+/*
+* TODOs:
+* - Memory_addPeri(index, array of addresses that the peri uses, read callback function)
+* - Memory_write(addr, sizetype, data, attrib)
+* - Memory_read(addr, sizetype, attrib)
+* - Memory_cpu_stall_context - addr, sizetype, attrib
+* - Memory_cpu_stall_flag - bool
+* - Memory_handle_writequeue_peri(peri_idx, write callback function)
+* - Memory_queue_peri(peri_idx, addr, sizetype, data)
+* - Memory_write_peri(addr, sizetype, data)
+* - Memory_read_peri(addr, sizetype, data)
+*
+* - address race conditions of the memory access when we are to implement multicore in this emulator.
+* - bus error if wrongly accessed in peripheral section
+* - Memory read / write can be word sized - need a range checker to make sure if there are peri overlaps,
+* its going to spit out bus error
+*/
+
+struct cpu_stall_context_t {
+	uint32 addr;
+	Memory_enum_size sizetype;
+	uint32 attrib;
+};
+extern uint32 Memory_cpu_stall_flag;
+extern cpu_stall_context_t Memory_cpu_stall_context;
+
 // memory read
 // size -> 8/16/32 bit
 extern void* Memory_read(uint32 addr, Memory_enum_size sizetype, uint32 attrib);
+extern void* Memory_read(cpu_stall_context_t context);
+extern void* Memory_read_peri(uint32 addr, Memory_enum_size sizetype);
+
 
 // memory write
 // size -> 8/16/32 bit
 extern void Memory_write(uint32 addr, Memory_enum_size sizetype, uint32 data, uint32 attrib);
 
+// register peripheral map
+
+extern void Memory_write_peri(uint32 addr, Memory_enum_size sizetype);
+
+extern void Memory_addPeri(uint32 idx, struct peri_addr_t* peri_addr, void (*readcallback)(void));
+
+extern void Memory_handle_writequeue_peri(uint32 idx, void (*writecallback)(void));
 
 // get memory map
 extern Memory_map_elem* Memory_getMap(uint32 addr);

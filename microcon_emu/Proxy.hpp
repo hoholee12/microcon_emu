@@ -24,7 +24,7 @@ typedef unsigned long uint32;
 typedef unsigned short uint16;
 typedef unsigned char uint8;
 struct Thread_data {
-	void(* func)(void);
+	void (*func)(void);
 	uint32 param1;
 	uint32 param2;
 };
