@@ -29,12 +29,17 @@ rh850: supports sch0l(search 0 starting from msb) - this essentially emulates a 
 
 two-layer allocator structure:
 - every allocator has a master bitmap and 32 sub bitmaps, each representing 32 blocks. (so 1024 blocks per allocator)
--- 1 main allocator of 4kb blocks
+-- 1 main allocator of 4kb blocks (not the smallest nor the biggest, but a middle ground)
 -- sub allocators for each size classes (512b, 4kb, 64kb, max kb...) with their own bitmaps and memory pools. 
 (but their pools are empty at the start, they are only filled when the main allocator gives them blocks)
 
-coalescing ideas:
-- dont coalesce.
+coalescing ideas for sub allocator:
+- lets say the sub allocator is for 64kb blocks.
+- todo
+
+splitting ideas for sub allocator:
+- lets say the sub allocator is for 512b blocks.
+- todo
 
 how to verify the given address on deallocation:
 - we can range check with compiled symbols.
@@ -45,9 +50,17 @@ thread safety ideas:
 -- with an added benefit of being able to set different allocator pool sizes per core and possibly align them to their local ram.
 
 resource scheduling ideas (to select whether to use bigger blocks or smaller blocks coalesced):
-- with the architecture above, we do best-fit allocation for selecting the block size class, and then we do first-fit allocation for selecting the block within the class.
+- with the architecture above, we do best-fit allocation for selecting the block size class
+-- and the class allocator will do the best fit search for the block within its class. 
+(so we have a two level best fit allocation)
+--- if we dont have any blocks in the class, we can try to get a block from the main allocator.
+(with this design, theres no splitting nor coalescing)
+--- we need to keep an extra variable to track the allocated size of the whole allocator. 
+(so that the sub allocators can check if they have enough space to allocate a block from the main allocator)
 
-
+freeing ideas for the main allocator:
+- we need to actively free the blocks back to the main allocator. (to keep the main allocator from being exhausted)
+-- then we wont need to keep track of whether we already have the main allocator blocks allocated to the sub allocators.
 
 */
 
