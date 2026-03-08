@@ -33,13 +33,21 @@ two-layer allocator structure:
 -- sub allocators for each size classes (512b, 4kb, 64kb, max kb...) with their own bitmaps and memory pools. 
 (but their pools are empty at the start, they are only filled when the main allocator gives them blocks)
 
+- we could allocate 4byte per 4kb block for the main allocator to keep track of the sub allocators that are using it (with class, address, etc) - but this would be bad in memory constrained systems.
+-- we instead 
+
 coalescing ideas for sub allocator:
 - lets say the sub allocator is for 64kb blocks.
-- todo
+- the allocator must request sequential blocks from the main allocator to be able to coalesce them into a 64kb block.
+- 
 
 splitting ideas for sub allocator:
 - lets say the sub allocator is for 512b blocks.
-- todo
+- the allocator must request a 4kb block from the main allocator and split it into 8 512b blocks to be able to split them into 512b blocks.
+- on allocation, we can check if the sub allocator has any blocks available. 
+-- if not, we can request a block from the main allocator and split it into smaller blocks to fill the sub allocator. 
+(we keep track of the available size in the sub allocator <in one variable> to know when we need to request more blocks from the main allocator)
+- 
 
 how to verify the given address on deallocation:
 - we can range check with compiled symbols.
@@ -59,8 +67,15 @@ resource scheduling ideas (to select whether to use bigger blocks or smaller blo
 (so that the sub allocators can check if they have enough space to allocate a block from the main allocator)
 
 freeing ideas for the main allocator:
-- we need to actively free the blocks back to the main allocator. (to keep the main allocator from being exhausted)
+- we design the sub allocators to simply actively(on free call) free the blocks back to the main allocator. (to keep the main allocator from being exhausted)
 -- then we wont need to keep track of whether we already have the main allocator blocks allocated to the sub allocators.
+
+*/
+
+/*
+prototype:
+
+
 
 */
 
