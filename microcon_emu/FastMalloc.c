@@ -26,6 +26,7 @@ search ideas:
 
 armv7m: supports mvn(bitwise not for inversion) and clz(count leading zeroes)
 rh850: supports sch0l(search 0 starting from msb) - this essentially emulates a full hardware for loop. (no extra logic needed for the once-freed blocks)
+x86: supports bsf(bit scan forward)
 
 two-layer allocator structure:
 - every allocator has a master bitmap and 32 sub bitmaps, each representing 32 blocks. (so 1024 blocks per allocator)
@@ -33,21 +34,18 @@ two-layer allocator structure:
 -- sub allocators for each size classes (512b, 4kb, 64kb, max kb...) with their own bitmaps and memory pools. 
 (but their pools are empty at the start, they are only filled when the main allocator gives them blocks)
 
-- we could allocate 4byte per 4kb block for the main allocator to keep track of the sub allocators that are using it (with class, address, etc) - but this would be bad in memory constrained systems.
--- we instead 
-
 coalescing ideas for sub allocator:
 - lets say the sub allocator is for 64kb blocks.
-- the allocator must request sequential blocks from the main allocator to be able to coalesce them into a 64kb block.
-- 
+- the allocator requests sequential blocks from the main allocator to be able to coalesce them into a 64kb block.
 
 splitting ideas for sub allocator:
 - lets say the sub allocator is for 512b blocks.
-- the allocator must request a 4kb block from the main allocator and split it into 8 512b blocks to be able to split them into 512b blocks.
-- on allocation, we can check if the sub allocator has any blocks available. 
--- if not, we can request a block from the main allocator and split it into smaller blocks to fill the sub allocator. 
+- the allocator must request one 4kb block from the main allocator
+-- and split it into 8 512b blocks.
+- on allocation
+-- we check if the sub allocator has any blocks available
+--- if not, we can request a block from the main allocator
 (we keep track of the available size in the sub allocator <in one variable> to know when we need to request more blocks from the main allocator)
-- 
 
 how to verify the given address on deallocation:
 - we can range check with compiled symbols.
@@ -83,3 +81,29 @@ prototype:
 
 
 
+void init_allocator(uint32 fixedsize) {
+    // initialize the main allocator
+    main_allocator.fixedsize = fixedsize;
+    main_allocator.cursize = 0;
+    main_allocator.fastmap = 0;
+    for (int i = 0; i < 32; i++) {
+        main_allocator.submap[i] = 0;
+    }
+    main_allocator.pool = (uint32*)malloc(fixedsize);
+    main_allocator.vmalist = (vmat*)malloc(sizeof(vmat));
+    main_allocator.vmalist->pool = main_allocator.pool;
+    main_allocator.vmalist->size = fixedsize;
+    main_allocator.vmalist->next = NULL;
+
+    // initialize the sub allocators
+    for (int i = 0; i < 5; i++) {
+        sub_allocators[i].fixedsize = 0; // we will set this later based on the size class
+        sub_allocators[i].cursize = 0;
+        sub_allocators[i].fastmap = 0;
+        for (int j = 0; j < 32; j++) {
+            sub_allocators[i].submap[j] = 0;
+        }
+        sub_allocators[i].pool = NULL; // we will set this when we request blocks from the main allocator
+        sub_allocators[i].vmalist = NULL; // we will set this when we request blocks from the main allocator
+    }
+}
