@@ -39,14 +39,8 @@
     <ClCompile Include="EmuPool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="EmuPoolDebug.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="EmuPoolDebug.hpp">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Clock.hpp">
       <Filter>헤더 파일</Filter>
     </ClInclude>

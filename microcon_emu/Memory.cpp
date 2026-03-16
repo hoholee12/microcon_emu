@@ -61,7 +61,7 @@ void Memory_init() {
 	// SRAM
 	Memory_addMap(0x20000000, 0x20000, MEMORY_ATTRIB_S_ALL);
 	// Peripheral
-	Memory_addMap(0xE0000000, 0x20000000, MEMORY_ATTRIB_S_ALL);
+	Memory_addMap(0xE0000000, 0x20000, MEMORY_ATTRIB_S_ALL);
 
 	Memory_init_peri(); // temporary. delete this later.
 

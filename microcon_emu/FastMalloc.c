@@ -77,33 +77,90 @@ prototype:
 
 */
 
+/* log based allocator */
+
 #include "FastMalloc.h"
 
+uint32 logalloc_pool[MAX_POOL_SIZE];
 
+/* for calloc */
+void* logalloc_allocate_clear_memory(uint32 size)
+{
+    uint32* ptr = NULL;
+    ptr = (uint32*)logalloc_allocate_memory(size);
+    memset(ptr, 0, size);
+    return ptr;
+}
 
-void init_allocator(uint32 fixedsize) {
-    // initialize the main allocator
-    main_allocator.fixedsize = fixedsize;
-    main_allocator.cursize = 0;
-    main_allocator.fastmap = 0;
-    for (int i = 0; i < 32; i++) {
-        main_allocator.submap[i] = 0;
+/* for malloc */
+/* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
+* indexes point to header, not data. */
+void* logalloc_allocate_memory(uint32 size)
+{
+    uint32 index = 0; /* must always point to header magic */
+    uint32 blocksize = size / 4 + 3; /* +3 is mandatory header */
+    uint32 curr_header_prevblock_startaddr = 0;
+    uint32 curr_header_nextblock_startaddr = 0;
+    void* result = NULL;
+    uint32 search_iteration = 0;
+
+    /* very first allocation */
+    if (logalloc_pool[0] == 0){
+        logalloc_pool[0] = 0xAAAAAAAA;
+        logalloc_pool[1] = 0;
+        logalloc_pool[2] = blocksize;   /* includes the header */
+        logalloc_pool[blocksize] = 0xAAAAAAAA;
+        logalloc_pool[blocksize + 1] = 0; /* prev is 0 since this is the first block */
+        logalloc_pool[blocksize + 2] = 0; /* nothing after this block yet */
+
+        result = &logalloc_pool[3]; /* return data area */
+        return result;
     }
-    main_allocator.pool = (uint32*)malloc(fixedsize);
-    main_allocator.vmalist = (vmat*)malloc(sizeof(vmat));
-    main_allocator.vmalist->pool = main_allocator.pool;
-    main_allocator.vmalist->size = fixedsize;
-    main_allocator.vmalist->next = NULL;
 
-    // initialize the sub allocators
-    for (int i = 0; i < 5; i++) {
-        sub_allocators[i].fixedsize = 0; // we will set this later based on the size class
-        sub_allocators[i].cursize = 0;
-        sub_allocators[i].fastmap = 0;
-        for (int j = 0; j < 32; j++) {
-            sub_allocators[i].submap[j] = 0;
+    /* we have at least one block here */
+    while(1)
+    {
+        if (logalloc_pool[index] != 0xAAAAAAAA)
+        {
+            // memory corruption detected
+            m_assert(0, "memory corruption detected in logalloc pool");
         }
-        sub_allocators[i].pool = NULL; // we will set this when we request blocks from the main allocator
-        sub_allocators[i].vmalist = NULL; // we will set this when we request blocks from the main allocator
+
+        if (index + blocksize + 3/* next (possible)block's header */ >= MAX_POOL_SIZE)
+        {
+            // out of memory
+            m_assert(0, "out of memory in logalloc pool");
+        }
+
+        /* current block's header */
+        curr_header_prevblock_startaddr = logalloc_pool[index + 1];
+        curr_header_nextblock_startaddr = logalloc_pool[index + 2];
+
+        /* one iteration */
+        /* check if we arrived at the end block (that we can append after) */
+        if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr == 0x0)
+        {
+            /* curr block */
+            /* Current block at 'index' will become our new allocated block */
+            logalloc_pool[index + 2] = index + blocksize; /* update next pointer to new end */
+            
+            /* next block */
+            logalloc_pool[index + blocksize] = 0xAAAAAAAA;
+            logalloc_pool[index + blocksize + 1] = index;
+            logalloc_pool[index + blocksize + 2] = 0; /* next is 0 since this is the new end */
+
+            result = &logalloc_pool[index + 3]; /* return data area */
+            return result;
+        }
+        /* or we arrived in the middle of the list */
+        else if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr != 0x0)
+        {
+            /* gap detection: if current block's next + header size != blocksize,
+             * theres a freed block in between. */
+            if (search_iteration > 0) /* skip gap detection for the very first block since it has no previous block */
+            {
+                
+            }
     }
+    
 }
