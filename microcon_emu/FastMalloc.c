@@ -82,6 +82,8 @@ prototype:
 #include "FastMalloc.h"
 
 uint32 logalloc_pool[MAX_POOL_SIZE];
+uint32 last_pos = 0;
+uint32 first_alloc = 0;
 
 /* for calloc */
 void* logalloc_allocate_clear_memory(uint32 size)
@@ -103,7 +105,7 @@ void* logalloc_allocate_memory(uint32 size)
     uint32 curr_block_next = 0;
 
     /* very first allocation */
-    if (logalloc_pool[0] == 0){
+    if (first_alloc == 0){
         logalloc_pool[0] = 0xAAAAAAAA;
         logalloc_pool[1] = 0;
         logalloc_pool[2] = blocksize;   /* includes the header */
@@ -111,6 +113,8 @@ void* logalloc_allocate_memory(uint32 size)
         logalloc_pool[blocksize + 1] = 0; /* prev is 0 since this is the first block */
         logalloc_pool[blocksize + 2] = 0; /* nothing after this block yet */
 
+        first_alloc = 1;    /* this will never reset until program termination */
+        last_pos = blocksize;
         return &logalloc_pool[3]; /* return data area */
     }
 
@@ -131,7 +135,7 @@ void* logalloc_allocate_memory(uint32 size)
             /* curr block */
             /* Current block at 'index' will become our new allocated block */
             logalloc_pool[index + 2] = index + blocksize; /* update next pointer to new end */
-            
+            last_pos = index + blocksize;
             /* next block */
             logalloc_pool[index + blocksize] = 0xAAAAAAAA;
             logalloc_pool[index + blocksize + 1] = index;
@@ -153,14 +157,23 @@ void* logalloc_allocate_memory(uint32 size)
             {
                 /* we have enough space to insert a new block here */
                 logalloc_pool[index + 2] = alleged_prev; /* update current block's next to point to new block */
-
+                last_pos = alleged_prev;
                 /* new block */
                 logalloc_pool[alleged_prev] = 0xAAAAAAAA;
                 logalloc_pool[alleged_prev + 1] = index; /* prev points to current block */
+                /* in case we allocate smaller than gap, we still need gap logic for future alloc here */
                 logalloc_pool[alleged_prev + 2] = curr_block_next; /* next points to next block */
-
-                /* next block */
-                logalloc_pool[curr_block_next + 1] = alleged_prev; /* update next block's prev to point to new block */
+                if (gap == blocksize)
+                {
+                    /* perfect fit, we can just update the next block's prev to point to new block */
+                    logalloc_pool[curr_block_next + 1] = alleged_prev;
+                }
+                else
+                {
+                    /* we can fit more, we need to update the next block's prev to point to new block's next
+                     * gap logic for future allocs here */
+                    logalloc_pool[curr_block_next + 1] = alleged_prev + blocksize;
+                }
 
                 return &logalloc_pool[alleged_prev + 3]; /* return data area */
             }
