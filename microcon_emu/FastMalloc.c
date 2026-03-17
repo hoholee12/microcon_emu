@@ -104,7 +104,9 @@ void* logalloc_allocate_memory(uint32 size)
     uint32 curr_block_prev = 0;
     uint32 curr_block_next = 0;
 
-    /* very first allocation */
+    /* very first allocation - non-freeable - for wraparound
+     * you could allocate a huge amount of memory here,
+     * or be a smart user and just allocate one block for the wraparound sentinel. */
     if (first_alloc == 0){
         logalloc_pool[0] = 0xAAAAAAAA;
         logalloc_pool[1] = 0;
@@ -117,6 +119,9 @@ void* logalloc_allocate_memory(uint32 size)
         last_pos = blocksize;
         return &logalloc_pool[3]; /* return data area */
     }
+
+    /* start searching from last position for better performance */
+    index = last_pos;
 
     /* we have at least one block here */
     while(1)
@@ -132,6 +137,14 @@ void* logalloc_allocate_memory(uint32 size)
         /* check if we arrived at the end block (that we can append after) */
         if (curr_block_prev != 0x0 && curr_block_next == 0x0)
         {
+            /* before continuing, check if we reached the absolute end of the array.
+             * if so, wraparound. */
+            if (index + blocksize >= MAX_POOL_SIZE)
+            {
+                /* wraparound logic */
+                index = 0;
+                continue;
+            }
             /* curr block */
             /* Current block at 'index' will become our new allocated block */
             logalloc_pool[index + 2] = index + blocksize; /* update next pointer to new end */
