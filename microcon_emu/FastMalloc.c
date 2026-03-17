@@ -99,10 +99,8 @@ void* logalloc_allocate_memory(uint32 size)
 {
     uint32 index = 0; /* must always point to header magic */
     uint32 blocksize = size / 4 + 3; /* +3 is mandatory header */
-    uint32 curr_header_prevblock_startaddr = 0;
-    uint32 curr_header_nextblock_startaddr = 0;
-    void* result = NULL;
-    uint32 search_iteration = 0;
+    uint32 curr_block_prev = 0;
+    uint32 curr_block_next = 0;
 
     /* very first allocation */
     if (logalloc_pool[0] == 0){
@@ -113,32 +111,22 @@ void* logalloc_allocate_memory(uint32 size)
         logalloc_pool[blocksize + 1] = 0; /* prev is 0 since this is the first block */
         logalloc_pool[blocksize + 2] = 0; /* nothing after this block yet */
 
-        result = &logalloc_pool[3]; /* return data area */
-        return result;
+        return &logalloc_pool[3]; /* return data area */
     }
 
     /* we have at least one block here */
     while(1)
     {
-        if (logalloc_pool[index] != 0xAAAAAAAA)
-        {
-            // memory corruption detected
-            m_assert(0, "memory corruption detected in logalloc pool");
-        }
-
-        if (index + blocksize + 3/* next (possible)block's header */ >= MAX_POOL_SIZE)
-        {
-            // out of memory
-            m_assert(0, "out of memory in logalloc pool");
-        }
+        /* memory corruption detected */
+        m_assert(logalloc_pool[index] == 0xAAAAAAAA, "memory corruption detected in logalloc pool");
 
         /* current block's header */
-        curr_header_prevblock_startaddr = logalloc_pool[index + 1];
-        curr_header_nextblock_startaddr = logalloc_pool[index + 2];
+        curr_block_prev = logalloc_pool[index + 1];
+        curr_block_next = logalloc_pool[index + 2];
 
         /* one iteration */
         /* check if we arrived at the end block (that we can append after) */
-        if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr == 0x0)
+        if (curr_block_prev != 0x0 && curr_block_next == 0x0)
         {
             /* curr block */
             /* Current block at 'index' will become our new allocated block */
@@ -149,18 +137,40 @@ void* logalloc_allocate_memory(uint32 size)
             logalloc_pool[index + blocksize + 1] = index;
             logalloc_pool[index + blocksize + 2] = 0; /* next is 0 since this is the new end */
 
-            result = &logalloc_pool[index + 3]; /* return data area */
-            return result;
+            return &logalloc_pool[index + 3]; /* return data area */
         }
         /* or we arrived in the middle of the list */
-        else if (curr_header_prevblock_startaddr != 0x0 && curr_header_nextblock_startaddr != 0x0)
+        else if (curr_block_prev != 0x0 && curr_block_next != 0x0)
         {
-            /* gap detection: if current block's next + header size != blocksize,
-             * theres a freed block in between. */
-            if (search_iteration > 0) /* skip gap detection for the very first block since it has no previous block */
+            /* make sure next block isnt corrupted */
+            m_assert(logalloc_pool[curr_block_next] == 0xAAAAAAAA, "memory corruption detected in logalloc pool: next block header corrupted");
+            /* gap detection: mfree removes block by simply doing prev_block->next = curr_block->next,
+             * effectively skipping the freed block. 
+             * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
+            uint32 alleged_prev = logalloc_pool[curr_block_next + 1];
+            uint32 gap = curr_block_next - alleged_prev;
+            if (gap >= blocksize)
             {
-                
+                /* we have enough space to insert a new block here */
+                logalloc_pool[index + 2] = alleged_prev; /* update current block's next to point to new block */
+
+                /* new block */
+                logalloc_pool[alleged_prev] = 0xAAAAAAAA;
+                logalloc_pool[alleged_prev + 1] = index; /* prev points to current block */
+                logalloc_pool[alleged_prev + 2] = curr_block_next; /* next points to next block */
+
+                /* next block */
+                logalloc_pool[curr_block_next + 1] = alleged_prev; /* update next block's prev to point to new block */
+
+                return &logalloc_pool[alleged_prev + 3]; /* return data area */
             }
+            else
+            {
+                /* gap too small, keep looking */
+            }
+        }
+
+        index = curr_block_next; /* move to next block */
     }
     
 }
