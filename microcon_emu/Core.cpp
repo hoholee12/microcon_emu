@@ -191,9 +191,9 @@ void Core_start(Thread_data* mydata) {
 
 	// FOR NOW: we shall do test related init in here
 
-	EmuPool_Init();
-	/*
-	efree((uint32*)(microcon_emupool + 0x3));
+	logalloc_init();
+
+	// efree((uint32*)(logalloc_pool + 0x3));
 	uint32* hello = emalloc(10 * sizeof(uint32));
 	for(int i = -3; i < 10; i++){
 		eprintf("%d\n", hello[i]);
@@ -211,11 +211,6 @@ void Core_start(Thread_data* mydata) {
 	}
 	efree(hello);
 	exit(0);
-
-*/
-
-
-
 
 
 	Clock_init();
