@@ -12,6 +12,8 @@ extern void* logalloc_allocate_memory(uint32 size);
 extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();
 
+/* TODO: add logalloc_getsize() to enable erealloc() */
+
 #define USE_EMUPOOL // uncomment to enable EMUPOOL
 #if defined(USE_EMUPOOL)
 #define emalloc(x) (uint32*)logalloc_allocate_memory(x)

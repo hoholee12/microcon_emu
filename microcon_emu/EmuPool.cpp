@@ -121,6 +121,24 @@ void logalloc_free_memory(void* ptr)
     logalloc_pool[baseindex + 1] = 0; /* clear prev pointer */
     logalloc_pool[baseindex + 2] = 0; /* clear next pointer */
     last_pos = prevblock_startaddr; /* rewind pos */
+
+    /* TODO: what if we free two consecutive blocks in a row? 
+        - block A, B, C, D
+        
+        1. free B and then C
+        - free B: A -> [freed B] -> C -> D
+        -- A points to C, C points to B (gap logic)
+        - free C: A -> [freed B] -> [freed C] -> D
+        -- B points to D, D points to C (gap logic)
+        --- B is invalid; A is not updated.
+    
+        2. free C and then B
+        - free C: A -> B -> [freed C] -> D
+        -- B points to D, D points to C (gap logic)
+        - free B: A -> [freed B] -> [freed C] -> D
+        -- A points to C, C points to B (gap logic)
+        --- C is invalid;
+    */
 }
 
 /* for malloc */
@@ -166,6 +184,19 @@ void* logalloc_allocate_memory(uint32 size)
         /* current block's header */
         curr_block_prev = logalloc_pool[index + 1];
         curr_block_next = logalloc_pool[index + 2];
+
+        /*
+        alloc size = 5
+        blocksize = 8
+        0: magic
+        1: prev
+        2: next
+        3~7: data (5 words)
+        8: magic
+        9: prev
+        10: next
+
+        */
 
         /* one iteration */
         /* we searching in the middle of the list */

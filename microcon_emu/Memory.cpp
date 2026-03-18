@@ -74,7 +74,7 @@ void systick(){
 void Memory_init_peri(){
 	// systick
 	struct peri_addr_t temp;
-	temp.peri_arr = emalloc(4, sizeof(uint32));
+	temp.peri_arr = emalloc(4 * sizeof(uint32));
 	temp.peri_arr_size = 4;
 	temp.peri_arr[0] = 0xE000E010; // SYST_CSR
 	temp.peri_arr[1] = 0xE000E014; // SYST_RVR
