@@ -215,7 +215,15 @@ void* logalloc_allocate_memory(uint32 size)
                 {
                     /* we can fit more, we need to update the next block's prev to point to new block's next
                      * - we plant gap logic for future allocs here */
-                    curr_header_next->prev = gap_index + blocksize;
+                    uint32 post_gap_index = gap_index + blocksize;
+                    curr_header_next->prev = post_gap_index;
+
+                    /* if we were to deallocate, make it a lone island, 
+                     * and then try reallocating the left side with a smaller block; */
+                    /* we need to plant free magic here */
+                    logalloc_block_header* post_gap_header = CONV_IDX_TO_ADDR(post_gap_index);
+                    post_gap_header->magic = MAGIC_NUMBER_FREE;
+                    post_gap_header->prev = gap_index;
                 }
 
                 return CONV_ADDR_TO_BODY(gap_header); /* return data area */
