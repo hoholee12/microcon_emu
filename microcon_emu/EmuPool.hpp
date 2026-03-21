@@ -23,6 +23,9 @@ extern void* logalloc_realloc_memory(void* ptr, uint32 size);
 extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();
 
+/* extra functions for performance */
+extern void logalloc_perfinit();
+
 /* macro for address conversion */
 #define CONV_IDX_TO_ADDR(index) ((logalloc_block_header*)&logalloc_pool[index])
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))

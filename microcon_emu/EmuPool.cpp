@@ -82,12 +82,52 @@
 
 uint32 logalloc_pool[MAX_POOL_SIZE];
 uint32 logalloc_pool_cap = 0;
-INDEX_TYPE last_pos = 0;
-INDEX_TYPE last_alloc_pos = MAX_POOL_SIZE - 4;
+uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses */
+INDEX_TYPE last_pos = 0;    /* last position for better performance */
+INDEX_TYPE last_alloc_pos = MAX_POOL_SIZE - sizeof(logalloc_block_header);
 
-void logalloc_init() {
+
+/* start of performance stuff */
+uint32 perf_blockcnt = 4;
+uint32 perf_blocksizes[] = {16, 256, 4096, 65536};
+uint32 perf_blockpercentage[] = {25, 25, 25, 25};
+void* perf_blockptr[4]; /* only for temporary blocks for freeing */
+
+void logalloc_perfinit()
+{
+    /* allocate artificial size class fences */
+    /* if the percentage does not add up(overflow), it will assert */
+    /* watch out for underflow ! */
+    uint32 medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[0]) - sizeof(logalloc_block_header);
+    perf_blockptr[0] = logalloc_allocate_memory(medium_size);
+    for (uint32 i = 1; i < perf_blockcnt - 1; i++)
+    {
+        medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[i]) - sizeof(logalloc_block_header);
+        logalloc_allocate_memory(0);
+        perf_blockptr[i] = logalloc_allocate_memory(medium_size);
+    }
+    medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[perf_blockcnt - 1]) - (sizeof(logalloc_block_header) * 2);
+    logalloc_allocate_memory(0);
+    perf_blockptr[perf_blockcnt - 1] = logalloc_allocate_memory(medium_size);
+
+    /* free the temporary blocks */
+    for (uint32 i = 0; i < perf_blockcnt; i++)
+    {
+        logalloc_free_memory(perf_blockptr[i]);
+    }
+
+    last_pos_perf_penalty = 0;
+    last_pos = 0;
+}
+
+
+
+/* end of performance stuff */
+
+void logalloc_init()
+{
     logalloc_block_header* curr_header;
-    INDEX_TYPE blocksize = sizeof(logalloc_block_header);
+    INDEX_TYPE blocksize = sizeof(logalloc_block_header) * 2; /* the beginning and the end */
 
     memset(logalloc_pool, 0, sizeof(logalloc_pool));
     last_pos = 0;
@@ -106,6 +146,8 @@ void logalloc_init() {
 
     last_pos = 0;
     logalloc_pool_cap = blocksize;
+
+    logalloc_perfinit();
 }
 
 /* for calloc */
@@ -151,6 +193,7 @@ void logalloc_free_memory(void* ptr)
     /* destroy */
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
     logalloc_pool_cap -= (nextblock_startidx - baseindex); /* update capacity */
+    /* TODO: capacity calc becomes weird when wraparound occurs */
 }
 
 /* for malloc */
@@ -168,6 +211,14 @@ void* logalloc_allocate_memory(uint32 size)
 
     /* start searching from last position for better performance */
     curr_index = last_pos;
+
+    /* validate last_pos first */
+    if (CONV_IDX_TO_ADDR(last_pos)->magic != MAGIC_NUMBER)
+    {
+        /* if its not a valid address, start from zero and increment penalty counter */
+        last_pos = 0;
+        last_pos_perf_penalty++;
+    }
 
     /* we have at least one block here */
     while(1)
