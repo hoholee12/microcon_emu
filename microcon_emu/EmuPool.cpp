@@ -7,7 +7,7 @@
  * 1MB buffer
  * 
  * - header -
- * first 4byte: magic number for corruption detection (0xAAAAAAAA for allocated, 0x0 for freed)
+ * first 4byte: magic number for corruption detection (0xAAAAAAAA for allocated, 0xBBBBBBBB for freed)
  * second 4byte: previous block's starting address + 3 (starting address without the header)
  * third 4byte: next block's starting address
  * 
@@ -50,8 +50,8 @@
  * allocation always goes left -> right. it does not go reverse. we can use this fact to indicate an empty gap.
  * when we dealloc block B (between A and C):
  * block A -> update A's next pointer to point to block C (skip over freed B)
- * block B -> clear magic to 0, clear next to 0, but KEEP prev pointer
- * block C -> do NOT update C's prev pointer (still points to nonexistent block B)
+ * block B -> clear magic to 0xBBBBBBBB and KEEP prev pointer
+ * block C -> should point to the now removed block B
  * 
  * Gap detection during allocation:
  * When traversing blocks, if we find that current_block.prev != expected_prev_addr,
@@ -63,9 +63,10 @@
  * Before marking a block as freed, check if adjacent blocks are already free:
  * 1. Check previous: if prev_block.next != our_header_addr, there's a gap before us
  *    - If prev_block.next == 0, the previous block is freed (walk backwards through chain)
- *    - Walk backwards using preserved prev pointers until we find an allocated block (magic == 0xAAAAAAAA)
+ *    - Walk backwards using preserved prev pointers until we find an allocated block 
+ *      (magic == 0xAAAAAAAA)
  *    - This handles chains of multiple consecutive freed blocks
- * 2. Check next: if next_block.magic == 0, the next block is already freed
+ * 2. Check next: if next_block.magic == 0xBBBBBBBB, the next block is already freed
  *    - Scan forward through consecutive freed blocks to find the final next pointer
  * 3. When coalescing, update forward links to skip over all freed blocks in the chain
  * 4. Example: A -> [freed B] -> [freed C] -> [to-free D] -> E becomes A -> E
@@ -73,6 +74,10 @@
  *    - Update A's next pointer to point to E, skipping over B, C, and D
  * 5. This creates larger contiguous free spaces for bigger allocations
  * 6. The preserved prev pointers in freed blocks enable this backward traversal
+ * 
+ * We put wraparound sentinels at each ends of the pool array (two empty pre-allocated blocks)
+ * so that the search can start anywhere on the pool, and wraparound to keep searching until 
+ * one cycle is complete without the pool end limit.
  */
 
 uint32 logalloc_pool[MAX_POOL_SIZE];
