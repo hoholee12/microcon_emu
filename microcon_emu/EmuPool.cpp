@@ -241,3 +241,12 @@ void* logalloc_allocate_memory(uint32 size)
     }
     
 }
+
+void* logalloc_realloc_memory(void* ptr, uint32 size)
+{
+    void* temp = logalloc_allocate_memory(size);
+    memcpy(temp, ptr, size);
+
+    logalloc_free_memory(ptr);
+    return temp;
+}
