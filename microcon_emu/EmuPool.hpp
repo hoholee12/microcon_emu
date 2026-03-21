@@ -28,8 +28,6 @@ extern void logalloc_init();
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))
 #define CONV_IDX_TO_BODY(index) CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(index))
 
-/* TODO: add logalloc_getsize() to enable erealloc() */
-
 #define USE_EMUPOOL // uncomment to enable EMUPOOL
 #if defined(USE_EMUPOOL)
 #define emalloc(size) (uint32*)logalloc_allocate_memory(size)
