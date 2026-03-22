@@ -83,14 +83,14 @@
 uint32 logalloc_pool[MAX_POOL_SIZE / sizeof(uint32)];
 uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses */
 INDEX_TYPE last_pos = 0;    /* last position for better performance */
-INDEX_TYPE last_alloc_pos = MAX_POOL_SIZE - sizeof(logalloc_block_header);
+INDEX_TYPE last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
 INDEX_TYPE logalloc_pool_cap = 0;
 
 
 /* start of performance stuff */
 uint32 perf_blockcnt = 4;
 uint32 perf_blocksizes[] = {16, 256, 4096, 65536};
-uint32 perf_blockpercentage[] = {25, 25, 25, 25};
+uint32 perf_blockpercentage[] = {90, 5, 3, 2};
 void* perf_blockptr[4]; /* only for temporary blocks for freeing */
 
 void logalloc_perfinit()
@@ -127,7 +127,7 @@ void logalloc_perfinit()
 void logalloc_init()
 {
     logalloc_block_header* curr_header;
-    INDEX_TYPE blocksize = (sizeof(logalloc_block_header) * 2) / sizeof(uint32); /* the beginning and the end */
+    INDEX_TYPE blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
 
     memset(logalloc_pool, 0, sizeof(logalloc_pool));
     last_pos = 0;
@@ -145,7 +145,7 @@ void logalloc_init()
     curr_header->next = 0; /* wraparound to index 0 */
 
     last_pos = 0;
-    logalloc_pool_cap = blocksize;
+    logalloc_pool_cap = blocksize * 2;
 
     logalloc_perfinit();
 }
@@ -164,7 +164,8 @@ void logalloc_free_memory(void* ptr)
 {
     INDEX_TYPE baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
-    m_assert(curr_header->magic == MAGIC_NUMBER, "you are passing an invalid pointer");
+    INDEX_TYPE nextindex = 0;
+    m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     
     m_assert(((baseindex != 0) && (baseindex != last_alloc_pos)), 
         "you cannot free the first or last block of the logalloc pool "
@@ -173,10 +174,20 @@ void logalloc_free_memory(void* ptr)
     INDEX_TYPE prevblock_startidx = curr_header->prev;
     INDEX_TYPE nextblock_startidx = curr_header->next;
 
-    /* coalesce if previous block is a freed block */
     logalloc_block_header* prevblock_header = CONV_IDX_TO_ADDR(prevblock_startidx);
     logalloc_block_header* nextblock_header = CONV_IDX_TO_ADDR(nextblock_startidx);
 
+    /* coalesce if next block is a freed block */
+    if (CONV_IDX_TO_ADDR(nextblock_header->prev)->magic == MAGIC_NUMBER_FREE)
+    {
+        nextindex = nextblock_header->prev;
+    }
+    else
+    {
+        nextindex = nextblock_startidx;
+    }
+
+    /* coalesce if previous block is a freed block */
     if (prevblock_header->magic == MAGIC_NUMBER_FREE)
     {
         CONV_IDX_TO_ADDR(prevblock_header->prev)->next = nextblock_startidx;
@@ -189,10 +200,11 @@ void logalloc_free_memory(void* ptr)
         nextblock_header->prev = baseindex;
         last_pos = prevblock_startidx; /* rewind pos */
     }
-    
+
     /* destroy */
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
-    logalloc_pool_cap -= (nextblock_startidx - baseindex); /* update capacity */
+    uint32 size_to_subtract = (nextindex - baseindex);
+    logalloc_pool_cap -= size_to_subtract; /* update capacity */
     /* TODO: capacity calc becomes weird when wraparound occurs */
 }
 
