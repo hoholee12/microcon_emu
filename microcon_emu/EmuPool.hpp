@@ -8,7 +8,7 @@
 #define MAGIC_NUMBER_FREE 0xBBBBBBBB
 #define INDEX_TYPE uint32 /* 16 bits for index, 64KB */
 
-#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the block size to 64KB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the block size to 64KB */
 #ifdef RELATIVE_INDEXING
 #define INDEX_TYPE uint16
 #define UINT16_MAX 0xFFFF
