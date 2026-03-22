@@ -80,11 +80,11 @@
  * one cycle is complete without the pool end limit.
  */
 
-uint32 logalloc_pool[MAX_POOL_SIZE];
-uint32 logalloc_pool_cap = 0;
+uint32 logalloc_pool[MAX_POOL_SIZE / sizeof(uint32)];
 uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses */
 INDEX_TYPE last_pos = 0;    /* last position for better performance */
 INDEX_TYPE last_alloc_pos = MAX_POOL_SIZE - sizeof(logalloc_block_header);
+INDEX_TYPE logalloc_pool_cap = 0;
 
 
 /* start of performance stuff */
@@ -127,7 +127,7 @@ void logalloc_perfinit()
 void logalloc_init()
 {
     logalloc_block_header* curr_header;
-    INDEX_TYPE blocksize = sizeof(logalloc_block_header) * 2; /* the beginning and the end */
+    INDEX_TYPE blocksize = (sizeof(logalloc_block_header) * 2) / sizeof(uint32); /* the beginning and the end */
 
     memset(logalloc_pool, 0, sizeof(logalloc_pool));
     last_pos = 0;
@@ -199,10 +199,10 @@ void logalloc_free_memory(void* ptr)
 /* for malloc */
 /* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
 * indexes point to header, not data. */
-void* logalloc_allocate_memory(uint32 size)
+void* logalloc_allocate_memory(uint32 bytecount)
 {
     INDEX_TYPE curr_index = 0; /* must always point to header magic */
-    INDEX_TYPE blocksize = (INDEX_TYPE)size / 4 + sizeof(logalloc_block_header);
+    INDEX_TYPE blocksize = ((INDEX_TYPE)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
     INDEX_TYPE curr_index_prev, curr_index_next;
     logalloc_block_header *curr_header, *curr_header_prev, *curr_header_next, *gap_header;
 

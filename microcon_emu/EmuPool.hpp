@@ -3,7 +3,7 @@
 #include <string.h>
 
 /* to be - generated macros & variables */
-#define MAX_POOL_SIZE 0x1000000	/* 64KB pool */
+#define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define MAGIC_NUMBER 0xAAAAAAAA
 #define MAGIC_NUMBER_FREE 0xBBBBBBBB
 #define INDEX_TYPE uint32 /* 16 bits for index, 64KB */
@@ -16,7 +16,7 @@ typedef struct {
 } logalloc_block_header;
 
 /* one bit per 1KB block */
-extern uint32 logalloc_pool[MAX_POOL_SIZE];
+extern uint32 logalloc_pool[];
 extern void* logalloc_allocate_clear_memory(uint32 size);
 extern void* logalloc_allocate_memory(uint32 size);
 extern void* logalloc_realloc_memory(void* ptr, uint32 size);
