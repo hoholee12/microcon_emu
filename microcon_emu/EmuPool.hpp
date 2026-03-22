@@ -11,6 +11,9 @@
 /* type definitions */
 typedef struct {
     uint32 magic;
+    /* future TODO: relative addressing with 2 byte sized indexing
+     * this will limit blocksize to that type, and will need to have checkpoints throughout the pool, 
+     * but itd be worth the tradeoff(shaves off 33% per header) if you are allocating tiny blocks. */
     INDEX_TYPE prev;
     INDEX_TYPE next;
 } logalloc_block_header;
