@@ -87,42 +87,62 @@ INDEX_TYPE last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / si
 INDEX_TYPE logalloc_pool_cap = 0;
 
 
-/* start of performance stuff */
-uint32 perf_blockcnt = 4;
-uint32 perf_blocksizes[] = {16, 256, 4096, 65536};
-uint32 perf_blockpercentage[] = {90, 5, 3, 2};
-void* perf_blockptr[4]; /* only for temporary blocks for freeing */
-
-void logalloc_perfinit()
+#ifdef RELATIVE_INDEXING
+void logalloc_relidxinit()
 {
-    /* allocate artificial size class fences */
-    /* if the percentage does not add up(overflow), it will assert */
-    /* watch out for underflow ! */
-    uint32 medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[0]) - sizeof(logalloc_block_header);
-    perf_blockptr[0] = logalloc_allocate_memory(medium_size);
-    for (uint32 i = 1; i < perf_blockcnt - 1; i++)
-    {
-        medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[i]) - sizeof(logalloc_block_header);
-        logalloc_allocate_memory(0);
-        perf_blockptr[i] = logalloc_allocate_memory(medium_size);
-    }
-    medium_size = (MAX_POOL_SIZE / 100 * perf_blockpercentage[perf_blockcnt - 1]) - (sizeof(logalloc_block_header) * 2);
-    logalloc_allocate_memory(0);
-    perf_blockptr[perf_blockcnt - 1] = logalloc_allocate_memory(medium_size);
+    /* allocate relative indexing sentinel blocks */
+    uint32 prev_pos = 0;
+    uint32 prev_gap_pos = 3;
+    uint32 curr_pos = 0;
+    uint32 curr_gap_pos = 0;
+    logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(0);
+    logalloc_block_header* gap_header = CONV_IDX_TO_ADDR(3);
+    logalloc_block_header* last_header = CONV_IDX_TO_ADDR(last_alloc_pos);
+    curr_header->magic = MAGIC_NUMBER;
+    curr_header->next = UINT16_MAX;
+    curr_header->prev = UINT16_MAX - last_alloc_pos; /* should be 3 */
+    gap_header->magic = MAGIC_NUMBER_FREE;
+    gap_header->prev = prev_pos;
 
-    /* free the temporary blocks */
-    for (uint32 i = 0; i < perf_blockcnt; i++)
+    while(prev_pos + UINT16_MAX < last_alloc_pos)
     {
-        logalloc_free_memory(perf_blockptr[i]);
+        curr_pos = prev_pos + curr_header->next;
+        curr_gap_pos = prev_gap_pos + curr_header->next;
+
+        curr_header = CONV_IDX_TO_ADDR(curr_pos);
+        curr_header->magic = MAGIC_NUMBER;
+        curr_header->prev = prev_pos;
+        curr_header->next = UINT16_MAX;
+
+        gap_header = CONV_IDX_TO_ADDR(curr_gap_pos);
+        gap_header->magic = MAGIC_NUMBER_FREE;
+        gap_header->prev = curr_pos;
+
+        prev_pos += curr_header->next;
+        prev_gap_pos += curr_header->next;
     }
 
-    last_pos_perf_penalty = 0;
-    last_pos = 0;
+    curr_pos = prev_pos + curr_header->next;
+    curr_gap_pos = prev_gap_pos + curr_header->next;
+
+    curr_header = CONV_IDX_TO_ADDR(curr_pos);
+    curr_header->magic = MAGIC_NUMBER;
+    curr_header->prev = prev_pos;
+    curr_header->next = last_alloc_pos;
+
+    if (curr_gap_pos < last_alloc_pos - (sizeof(logalloc_block_header) / sizeof(uint32)))
+    {
+        gap_header = CONV_IDX_TO_ADDR(curr_gap_pos);
+        gap_header->magic = MAGIC_NUMBER_FREE;
+        gap_header->prev = curr_pos;
+        last_header->prev = curr_gap_pos;
+    }
+    else
+    {
+        last_header->prev = curr_pos;
+    }
 }
-
-
-
-/* end of performance stuff */
+#endif
 
 void logalloc_init()
 {
@@ -147,7 +167,11 @@ void logalloc_init()
     last_pos = 0;
     logalloc_pool_cap = blocksize * 2;
 
-    logalloc_perfinit();
+#ifdef RELATIVE_INDEXING
+    logalloc_relidxinit();
+#endif
+
+    last_pos_perf_penalty = 0;
 }
 
 /* for calloc */

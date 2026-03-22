@@ -8,6 +8,12 @@
 #define MAGIC_NUMBER_FREE 0xBBBBBBBB
 #define INDEX_TYPE uint32 /* 16 bits for index, 64KB */
 
+#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the block size to 64KB */
+#ifdef RELATIVE_INDEXING
+#define INDEX_TYPE uint16
+#define UINT16_MAX 0xFFFF
+#endif
+
 /* type definitions */
 typedef struct {
     uint32 magic;
@@ -27,7 +33,9 @@ extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();
 
 /* extra functions for performance */
-extern void logalloc_perfinit();
+#ifdef RELATIVE_INDEXING
+extern void logalloc_relidxinit();
+#endif
 
 /* macro for address conversion */
 #define CONV_IDX_TO_ADDR(index) ((logalloc_block_header*)&logalloc_pool[index])
