@@ -229,7 +229,6 @@ void logalloc_free_memory(void* ptr)
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
     uint32 size_to_subtract = (nextindex - baseindex);
     logalloc_pool_cap -= size_to_subtract; /* update capacity */
-    /* TODO: capacity calc becomes weird when wraparound occurs */
 }
 
 /* for malloc */

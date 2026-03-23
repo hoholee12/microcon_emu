@@ -37,6 +37,19 @@ extern void logalloc_init();
 extern void logalloc_relidxinit();
 #endif
 
+/* helper macros for index conversion */
+#ifdef RELATIVE_INDEXING
+#define GET_PREV_IDX(header, base) ((base) - (header)->prev)
+#define GET_NEXT_IDX(header, base) ((base) + (header)->next)
+#define SET_PREV_IDX(header, target, base) ((header)->prev = (base) - (target))
+#define SET_NEXT_IDX(header, target, base) ((header)->next = (target) - (base))
+#else
+#define GET_PREV_IDX(header, base) ((header)->prev)
+#define GET_NEXT_IDX(header, base) ((header)->next)
+#define SET_PREV_IDX(header, target, base) ((header)->prev = (target))
+#define SET_NEXT_IDX(header, target, base) ((header)->next = (target))
+#endif
+
 /* macro for address conversion */
 #define CONV_IDX_TO_ADDR(index) ((logalloc_block_header*)&logalloc_pool[index])
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))
