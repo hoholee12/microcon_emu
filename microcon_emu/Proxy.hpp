@@ -29,6 +29,8 @@ struct Thread_data {
 	uint32 param2;
 };
 
+#define UINT24_MAX 0xFFFFFF
+
 // functions
 extern DWORD WINAPI ThreadFunc(void* data);
 

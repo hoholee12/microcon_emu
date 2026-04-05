@@ -81,50 +81,66 @@ extern void logalloc_relidxinit();
  * 
  * */
 
-/* (...){...} <- this is a compound literal btw; valid C99 */
-/* decode macro */
-#define RELADR_HEAD_DECODE(index) \
-    (logalloc_block_header){ \
-        .firstword = (~(index)) ^ (CONV_IDX_TO_ADDR(index)->firstword), \
-        .secondword = (index) ^ (CONV_IDX_TO_ADDR(index)->secondword) \
-    }
+/* decode function */
+static inline logalloc_block_header RELADR_HEAD_DECODE(uint32 index) {
+    logalloc_block_header result;
+    result.firstword = (~index) ^ (CONV_IDX_TO_ADDR(index)->firstword);
+    result.secondword = index ^ (CONV_IDX_TO_ADDR(index)->secondword);
+    return result;
+}
 
-/* encode macro */
-#define RELADR_HEAD_ENCODE(index, firstword, secondword) \
-    (logalloc_block_header){ \
-        .firstword = (~(index)) ^ (firstword), \
-        .secondword = (index) ^ (secondword) \
-    }
+/* encode function */
+static inline logalloc_block_header RELADR_HEAD_ENCODE(uint32 index, uint32 firstword, uint32 secondword) {
+    logalloc_block_header result;
+    result.firstword = (~index) ^ firstword;
+    result.secondword = index ^ secondword;
+    return result;
+}
 
-/* update macro for header update; internally uses encode macro */
-#define RELADR_HEAD_UPDATE(index, previndex, nextindex) do { \
-    uint32 firstword = MAGIC_NUMBER | \
-                        (((previndex) >> 16) & 0xFF) << 8 | \
-                        (((nextindex) >> 16) & 0xFF) << 16 | \
-                        (((previndex) >> 8) & 0xFF) << 24; \
-    uint32 secondword = MAGIC_NUMBER | \
-                         ((previndex) & 0xFF) << 8 | \
-                         (((nextindex) >> 8) & 0xFF) << 16 | \
-                         ((nextindex) & 0xFF) << 24; \
-    *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword); \
-} while(0)
+/* update function for header update; internally uses encode function */
+static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 previndex, uint32 nextindex) {
+    uint32 firstword = MAGIC_NUMBER |
+                       (((previndex) >> 16) & 0xFF) << 8 |
+                       (((nextindex) >> 16) & 0xFF) << 16 |
+                       (((previndex) >> 8) & 0xFF) << 24;
+    uint32 secondword = MAGIC_NUMBER |
+                        ((previndex) & 0xFF) << 8 |
+                        (((nextindex) >> 8) & 0xFF) << 16 |
+                        ((nextindex) & 0xFF) << 24;
+    *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
+}
 
-/* get next and prev index macros; internally uses decode macro */
-#define RELADR_NEXT_IDX(index) \
-    (((RELADR_HEAD_DECODE(index).firstword >> 16) & 0xFF) << 16 | \
-     ((RELADR_HEAD_DECODE(index).secondword >> 16) & 0xFF) << 8 | \
-     ((RELADR_HEAD_DECODE(index).secondword >> 24) & 0xFF))
+/* update a free block header */
+static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 previndex) {
+    uint32 firstword = MAGIC_NUMBER |
+                       (((previndex) >> 16) & 0xFF) << 8 |
+                       (((previndex) >> 8) & 0xFF) << 24;
+    uint32 secondword = MAGIC_NUMBER |
+                        ((previndex) & 0xFF) << 8;
+    *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
+}
 
-#define RELADR_PREV_IDX(index) \
-    (((RELADR_HEAD_DECODE(index).firstword >> 8) & 0xFF) << 16 | \
-     ((RELADR_HEAD_DECODE(index).firstword >> 24) & 0xFF) << 8 | \
-     ((RELADR_HEAD_DECODE(index).secondword >> 8) & 0xFF))
+/* get next and prev index functions; internally uses decode function */
+static inline uint32 RELADR_NEXT_IDX(uint32 index) {
+    logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
+    return (((decoded.firstword >> 16) & 0xFF) << 16 |
+            ((decoded.secondword >> 16) & 0xFF) << 8 |
+            ((decoded.secondword >> 24) & 0xFF));
+}
 
-/* get magic number macro; internally uses decode macro */
+static inline uint32 RELADR_PREV_IDX(uint32 index) {
+    logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
+    return (((decoded.firstword >> 8) & 0xFF) << 16 |
+            ((decoded.firstword >> 24) & 0xFF) << 8 |
+            ((decoded.secondword >> 8) & 0xFF));
+}
+
+/* get magic number function; internally uses decode function */
 /* if valid, this should only give value of 0xAA or 0xCC */
-#define RELADR_MAGIC_NUMBER(index) \
-    ((RELADR_HEAD_DECODE(index).firstword & 0xFF) | \
-     (RELADR_HEAD_DECODE(index).secondword & 0xFF))
+static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
+    logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
+    return ((decoded.firstword & 0xFF) | (decoded.secondword & 0xFF));
+}
 #endif
 
 
