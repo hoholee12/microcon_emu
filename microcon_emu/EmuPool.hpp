@@ -4,24 +4,24 @@
 
 /* to be - generated macros & variables */
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
-#define MAGIC_NUMBER 0xAAAAAAAA
-#define MAGIC_NUMBER_FREE 0xBBBBBBBB
+#define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation to 16MB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
-    uint8 magicnum0; /* always expects AA */
+    uint8 magicnum0; /* always expects AA or BB (free) */
     uint8 prev0;
     uint8 next0;
     uint8 prev1;
-    uint8 magicnum1; /* always expects BB */
+    uint8 magicnum1; /* always expects AA or BB (free) */
     uint8 prev2;
     uint8 next1;
     uint8 next2;
 } logalloc_block_header;    /* 64bit */
 
-
+#define MAGIC_NUMBER 0xAA
+#define MAGIC_NUMBER_FREE 0xBB
 
 
 #else
@@ -31,7 +31,10 @@ typedef struct {
     uint32 prev;
     uint32 next;
 } logalloc_block_header;
+#define MAGIC_NUMBER 0xAAAAAAAA
+#define MAGIC_NUMBER_FREE 0xBBBBBBBB
 #endif
+
 
 /* one bit per 1KB block */
 extern uint32 logalloc_pool[];
@@ -52,7 +55,24 @@ extern void logalloc_relidxinit();
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))
 #define CONV_IDX_TO_BODY(index) CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(index))
 
-#define USE_EMUPOOL // uncomment to enable EMUPOOL
+#ifdef RELATIVE_ADDRESSING
+#define RELADR_HEAD_DECODE_0(index) (((~index) ^ (CONV_IDX_TO_ADDR(index)->magicnum0 + )))
+#define RELADR_HEAD_DECODE_1(index) 
+#define RELADR_HEAD_ENCODE_0(index)
+#define RELADR_HEAD_ENCODE_1(index)
+#define RELADR_NEXT_IDX(index) \
+do {
+    CONV_IDX_TO_ADDR(index);
+
+
+} while(0);
+#define RELADR_PREV_IDX
+#endif
+
+
+
+
+
 #if defined(USE_EMUPOOL)
 #define emalloc(size) (uint32*)logalloc_allocate_memory(size)
 #define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size)
@@ -83,7 +103,7 @@ extern void logalloc_relidxinit();
  * 
  * word #2:
  * - word #1's index position as secondary encoding
- * - byte 1: BB as encoded magic number
+ * - byte 1: AA as encoded magic number
  * - byte 2: 3rd byte of prev index
  * - byte 3-4: 2nd-3rd byte of next index
  * 
@@ -92,11 +112,11 @@ extern void logalloc_relidxinit();
  * 
  * 
  * demo:
- * AA 00 00 00 BB 0F 00 0F (prev is 0F away, next is 0F away)
+ * AA 00 00 00 AA 0F 00 0F (prev is 0F away, next is 0F away)
  * position XOR: (example AB CD EF 01)
  * negation - 54 32 10 FF
  * ^ 543210FFABCDEF01 -> (~index) + index
- * FE 32 10 FF 10 C2 EF 0E
+ * FE 32 10 FF 01 C2 EF 0E
  * 
  * i call this ~position-dependent XOR encoding with bidirectional mixing~
  * 
