@@ -82,9 +82,9 @@
 
 uint32 logalloc_pool[MAX_POOL_SIZE / sizeof(uint32)];
 uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses */
-INDEX_TYPE last_pos = 0;    /* last position for better performance */
-INDEX_TYPE last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
-INDEX_TYPE logalloc_pool_cap = 0;
+uint32 last_pos = 0;    /* last position for better performance */
+uint32 last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
+uint32 logalloc_pool_cap = 0;
 
 
 #ifdef RELATIVE_INDEXING
@@ -147,7 +147,7 @@ void logalloc_relidxinit()
 void logalloc_init()
 {
     logalloc_block_header* curr_header;
-    INDEX_TYPE blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
+    uint32 blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
 
     memset(logalloc_pool, 0, sizeof(logalloc_pool));
     last_pos = 0;
@@ -186,17 +186,17 @@ void* logalloc_allocate_clear_memory(uint32 size)
 /* for free */
 void logalloc_free_memory(void* ptr)
 {
-    INDEX_TYPE baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
-    INDEX_TYPE nextindex = 0;
+    uint32 nextindex = 0;
     m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     
     m_assert(((baseindex != 0) && (baseindex != last_alloc_pos)), 
         "you cannot free the first or last block of the logalloc pool "
         "since it is used as a sentinel for wraparound");
 
-    INDEX_TYPE prevblock_startidx = curr_header->prev;
-    INDEX_TYPE nextblock_startidx = curr_header->next;
+    uint32 prevblock_startidx = curr_header->prev;
+    uint32 nextblock_startidx = curr_header->next;
 
     logalloc_block_header* prevblock_header = CONV_IDX_TO_ADDR(prevblock_startidx);
     logalloc_block_header* nextblock_header = CONV_IDX_TO_ADDR(nextblock_startidx);
@@ -236,9 +236,9 @@ void logalloc_free_memory(void* ptr)
 * indexes point to header, not data. */
 void* logalloc_allocate_memory(uint32 bytecount)
 {
-    INDEX_TYPE curr_index = 0; /* must always point to header magic */
-    INDEX_TYPE blocksize = ((INDEX_TYPE)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
-    INDEX_TYPE curr_index_prev, curr_index_next;
+    uint32 curr_index = 0; /* must always point to header magic */
+    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
+    uint32 curr_index_prev, curr_index_next;
     logalloc_block_header *curr_header, *curr_header_prev, *curr_header_next, *gap_header;
 
     /* sanity check */
@@ -278,8 +278,8 @@ void* logalloc_allocate_memory(uint32 bytecount)
             /* gap detection: mfree removes block by simply doing prev_block->next = curr_block->next,
              * effectively skipping the freed block. 
              * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
-            INDEX_TYPE gap_index = curr_header_next->prev;
-            INDEX_TYPE gapsize = curr_index_next - gap_index;
+            uint32 gap_index = curr_header_next->prev;
+            uint32 gapsize = curr_index_next - gap_index;
             if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */

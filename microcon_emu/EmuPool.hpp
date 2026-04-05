@@ -6,23 +6,32 @@
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define MAGIC_NUMBER 0xAAAAAAAA
 #define MAGIC_NUMBER_FREE 0xBBBBBBBB
-#define INDEX_TYPE uint32 /* 16 bits for index, 64KB */
 
-// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the block size to 64KB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation to 16MB */
+
 #ifdef RELATIVE_INDEXING
-#define INDEX_TYPE uint16
-#define UINT16_MAX 0xFFFF
-#endif
+typedef struct {
+    uint8 magicnum0; /* always expects AA */
+    uint8 prev0;
+    uint8 next0;
+    uint8 prev1;
+    uint8 magicnum1; /* always expects BB */
+    uint8 prev2;
+    uint8 next1;
+    uint8 next2;
+} logalloc_block_header;    /* 64bit */
 
+
+
+
+#else
 /* type definitions */
 typedef struct {
     uint32 magic;
-    /* future TODO: relative addressing with 2 byte sized indexing
-     * this will limit blocksize to that type, and will need to have checkpoints throughout the pool, 
-     * but itd be worth the tradeoff(shaves off 33% per header) if you are allocating tiny blocks. */
-    INDEX_TYPE prev;
-    INDEX_TYPE next;
+    uint32 prev;
+    uint32 next;
 } logalloc_block_header;
+#endif
 
 /* one bit per 1KB block */
 extern uint32 logalloc_pool[];
@@ -37,18 +46,6 @@ extern void logalloc_init();
 extern void logalloc_relidxinit();
 #endif
 
-/* helper macros for index conversion */
-#ifdef RELATIVE_INDEXING
-#define GET_PREV_IDX(header, base) ((base) - (header)->prev)
-#define GET_NEXT_IDX(header, base) ((base) + (header)->next)
-#define SET_PREV_IDX(header, target, base) ((header)->prev = (base) - (target))
-#define SET_NEXT_IDX(header, target, base) ((header)->next = (target) - (base))
-#else
-#define GET_PREV_IDX(header, base) ((header)->prev)
-#define GET_NEXT_IDX(header, base) ((header)->next)
-#define SET_PREV_IDX(header, target, base) ((header)->prev = (target))
-#define SET_NEXT_IDX(header, target, base) ((header)->next = (target))
-#endif
 
 /* macro for address conversion */
 #define CONV_IDX_TO_ADDR(index) ((logalloc_block_header*)&logalloc_pool[index])
@@ -98,7 +95,9 @@ extern void logalloc_relidxinit();
  * AA 00 00 00 BB 0F 00 0F (prev is 0F away, next is 0F away)
  * position XOR: (example AB CD EF 01)
  * negation - 54 32 10 FF
- * ^ 543210FFABCDEF01
+ * ^ 543210FFABCDEF01 -> (~index) + index
  * FE 32 10 FF 10 C2 EF 0E
+ * 
+ * i call this ~position-dependent XOR encoding with bidirectional mixing~
  * 
  * */
