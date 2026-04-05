@@ -10,18 +10,8 @@
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
-    struct firstword {
-        uint8 magicnum0; /* always expects AA or BB (free) */
-        uint8 prev0;
-        uint8 next0;
-        uint8 prev1;
-    } firstword;
-    struct secondword {
-        uint8 magicnum1; /* always expects AA or BB (free) */
-        uint8 prev2;
-        uint8 next1;
-        uint8 next2;
-    } secondword;
+    uint32 firstword;   /* [31:24] prev1 | [23:16] next0 | [15:8] prev0 | [7:0] magicnum0 */
+    uint32 secondword;  /* [31:24] next2 | [23:16] next1 | [15:8] prev2 | [7:0] magicnum1 */
 } logalloc_block_header;    /* 64bit */
 
 #define MAGIC_NUMBER 0xAA
@@ -59,76 +49,7 @@ extern void logalloc_relidxinit();
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))
 #define CONV_IDX_TO_BODY(index) CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(index))
 
-#ifdef RELATIVE_ADDRESSING
-/* relative indexing macros */
-/* decode macro */
-#define RELADR_HEAD_DECODE(index) \
-    (logalloc_block_header)( \
-        ((~index) ^ (CONV_IDX_TO_ADDR(index)->firstword)) << 32 | \
-        ((index) ^ (CONV_IDX_TO_ADDR(index)->secondword)) \
-    )
-
-/* encode macro */
-#define RELADR_HEAD_ENCODE(index, firstword, secondword) \
-    (logalloc_block_header)( \
-        ((~index) ^ firstword) << 32 | \
-        ((index) ^ secondword) \
-    )
-
-/* update macro for header update; internally uses encode macro */
-#define RELADR_HEAD_UPDATE(index, previndex, nextindex) do { \
-    logalloc_block_header header_backup = *CONV_IDX_TO_ADDR(index); \
-    header_backup.firstword.magicnum0 = MAGIC_NUMBER; \
-    header_backup.secondword.magicnum1 = MAGIC_NUMBER; \
-    header_backup.firstword.prev0 = (previndex >> 16) & 0xFF; \
-    header_backup.firstword.prev1 = (previndex >> 8) & 0xFF; \
-    header_backup.secondword.prev2 = previndex & 0xFF; \
-    header_backup.firstword.next0 = (nextindex >> 16) & 0xFF; \
-    header_backup.secondword.next1 = (nextindex >> 8) & 0xFF; \
-    header_backup.secondword.next2 = nextindex & 0xFF; \
-    *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, header_backup.firstword, header_backup.secondword); \
-} while(0)
-
-/* get next and prev index macros; internally uses decode macro */
-#define RELADR_NEXT_IDX(index) \
-    ((uint32)(RELADR_HEAD_DECODE(index).firstword.next0) << 16 | \
-     (uint32)(RELADR_HEAD_DECODE(index).secondword.next1) << 8 | \
-     (uint32)(RELADR_HEAD_DECODE(index).secondword.next2))
-
-#define RELADR_PREV_IDX(index) \
-    ((uint32)(RELADR_HEAD_DECODE(index).firstword.prev0) << 16 | \
-     (uint32)(RELADR_HEAD_DECODE(index).firstword.prev1) << 8 | \
-     (uint32)(RELADR_HEAD_DECODE(index).secondword.prev2))
-
-/* get magic number macro; internally uses decode macro */
-/* if valid, this should only give value of 0xAA or 0xCC */
-#define RELADR_MAGIC_NUMBER(index) \
-    (RELADR_HEAD_DECODE(index).firstword.magicnum0 | \
-     RELADR_HEAD_DECODE(index).secondword.magicnum1)
-#endif
-
-
-
-
-
-#if defined(USE_EMUPOOL)
-#define emalloc(size) (uint32*)logalloc_allocate_memory(size)
-#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size)
-#define erealloc(ptr, size) (uint32*)logalloc_realloc_memory(ptr, size)
-#define efree(ptr) logalloc_free_memory(ptr)
-#else
-#define emalloc(size) (uint32*)malloc(size)
-#define ecalloc(elem, size) (uint32*)calloc(elem, size)
-#define erealloc(ptr, size) (uint32*)realloc(ptr, size)
-#define efree(ptr) free(ptr)
-#endif
-
-#define ememcpy(dest, src, size) memcpy(dest, src, size)
-
-
-
-
-
+#ifdef RELATIVE_INDEXING
 /* make block headers as reliable as possible
  * --- we will use 2 words (8bytes) for best alignment.
  * structure:
@@ -159,3 +80,70 @@ extern void logalloc_relidxinit();
  * i call this ~position-dependent XOR encoding with bidirectional mixing~
  * 
  * */
+
+/* (...){...} <- this is a compound literal btw; valid C99 */
+/* decode macro */
+#define RELADR_HEAD_DECODE(index) \
+    (logalloc_block_header){ \
+        .firstword = (~(index)) ^ (CONV_IDX_TO_ADDR(index)->firstword), \
+        .secondword = (index) ^ (CONV_IDX_TO_ADDR(index)->secondword) \
+    }
+
+/* encode macro */
+#define RELADR_HEAD_ENCODE(index, firstword, secondword) \
+    (logalloc_block_header){ \
+        .firstword = (~(index)) ^ (firstword), \
+        .secondword = (index) ^ (secondword) \
+    }
+
+/* update macro for header update; internally uses encode macro */
+#define RELADR_HEAD_UPDATE(index, previndex, nextindex) do { \
+    uint32 firstword = MAGIC_NUMBER | \
+                        (((previndex) >> 16) & 0xFF) << 8 | \
+                        (((nextindex) >> 16) & 0xFF) << 16 | \
+                        (((previndex) >> 8) & 0xFF) << 24; \
+    uint32 secondword = MAGIC_NUMBER | \
+                         ((previndex) & 0xFF) << 8 | \
+                         (((nextindex) >> 8) & 0xFF) << 16 | \
+                         ((nextindex) & 0xFF) << 24; \
+    *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword); \
+} while(0)
+
+/* get next and prev index macros; internally uses decode macro */
+#define RELADR_NEXT_IDX(index) \
+    (((RELADR_HEAD_DECODE(index).firstword >> 16) & 0xFF) << 16 | \
+     ((RELADR_HEAD_DECODE(index).secondword >> 16) & 0xFF) << 8 | \
+     ((RELADR_HEAD_DECODE(index).secondword >> 24) & 0xFF))
+
+#define RELADR_PREV_IDX(index) \
+    (((RELADR_HEAD_DECODE(index).firstword >> 8) & 0xFF) << 16 | \
+     ((RELADR_HEAD_DECODE(index).firstword >> 24) & 0xFF) << 8 | \
+     ((RELADR_HEAD_DECODE(index).secondword >> 8) & 0xFF))
+
+/* get magic number macro; internally uses decode macro */
+/* if valid, this should only give value of 0xAA or 0xCC */
+#define RELADR_MAGIC_NUMBER(index) \
+    ((RELADR_HEAD_DECODE(index).firstword & 0xFF) | \
+     (RELADR_HEAD_DECODE(index).secondword & 0xFF))
+#endif
+
+
+
+
+
+#if defined(USE_EMUPOOL)
+#define emalloc(size) (uint32*)logalloc_allocate_memory(size)
+#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size)
+#define erealloc(ptr, size) (uint32*)logalloc_realloc_memory(ptr, size)
+#define efree(ptr) logalloc_free_memory(ptr)
+#else
+#define emalloc(size) (uint32*)malloc(size)
+#define ecalloc(elem, size) (uint32*)calloc(elem, size)
+#define erealloc(ptr, size) (uint32*)realloc(ptr, size)
+#define efree(ptr) free(ptr)
+#endif
+
+#define ememcpy(dest, src, size) memcpy(dest, src, size)
+
+
+
