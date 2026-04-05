@@ -69,3 +69,36 @@ extern void logalloc_relidxinit();
 #endif
 
 #define ememcpy(dest, src, size) memcpy(dest, src, size)
+
+
+
+
+
+/* make block headers as reliable as possible
+ * --- we will use 2 words (8bytes) for best alignment.
+ * structure:
+ * 
+ * word #1:
+ * - real index position(inverted) as secondary encoding
+ * - byte 1: AA as encoded magic number
+ * - byte 2-3: 1st byte for each prev / next index
+ * - byte 4: 2nd byte of prev index
+ * 
+ * word #2:
+ * - word #1's index position as secondary encoding
+ * - byte 1: BB as encoded magic number
+ * - byte 2: 3rd byte of prev index
+ * - byte 3-4: 2nd-3rd byte of next index
+ * 
+ * index position for encoding:
+ * - 4 byte inverted index + 4 byte index = 8 byte
+ * 
+ * 
+ * demo:
+ * AA 00 00 00 BB 0F 00 0F (prev is 0F away, next is 0F away)
+ * position XOR: (example AB CD EF 01)
+ * negation - 54 32 10 FF
+ * ^ 543210FFABCDEF01
+ * FE 32 10 FF 10 C2 EF 0E
+ * 
+ * */
