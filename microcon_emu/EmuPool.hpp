@@ -6,7 +6,7 @@
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
+#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
@@ -77,8 +77,6 @@ extern void logalloc_relidxinit();
  * ^ 543210FFABCDEF01 -> (~index) + index
  * FE 32 10 FF 01 C2 EF 0E
  * 
- * i call this ~position-dependent XOR encoding with bidirectional mixing~
- * 
  * */
 
 /* decode function */
@@ -112,10 +110,10 @@ static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 previndex, uint32 nex
 
 /* update a free block header */
 static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 previndex) {
-    uint32 firstword = MAGIC_NUMBER |
+    uint32 firstword = MAGIC_NUMBER_FREE |
                        (((previndex) >> 16) & 0xFF) << 8 |
                        (((previndex) >> 8) & 0xFF) << 24;
-    uint32 secondword = MAGIC_NUMBER |
+    uint32 secondword = MAGIC_NUMBER_FREE |
                         ((previndex) & 0xFF) << 8;
     *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
 }

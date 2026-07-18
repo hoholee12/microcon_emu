@@ -225,6 +225,55 @@ void* logalloc_allocate_clear_memory(uint32 size)
 }
 
 /* for free */
+#ifdef RELATIVE_INDEXING
+void logalloc_free_memory(void* ptr)
+{
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
+    uint32 nextindex = 0;
+    uint32 magic_num = RELADR_MAGIC_NUMBER(baseindex);
+    m_assert(magic_num == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+    
+    m_assert(((baseindex != 0) && (baseindex != last_alloc_pos)), 
+        "you cannot free the first or last block of the logalloc pool "
+        "since it is used as a sentinel for wraparound");
+
+    uint32 prevblock_startidx = RELADR_PREV_IDX(baseindex);
+    uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
+
+    uint32 nextblock_prev = RELADR_PREV_IDX(nextblock_startidx);
+    uint32 prevblock_magic = RELADR_MAGIC_NUMBER(prevblock_startidx);
+
+    /* coalesce if next block is a freed block */
+    if (RELADR_MAGIC_NUMBER(nextblock_prev) == MAGIC_NUMBER_FREE)
+    {
+        nextindex = nextblock_prev;
+    }
+    else
+    {
+        nextindex = nextblock_startidx;
+    }
+
+    /* coalesce if previous block is a freed block */
+    if (prevblock_magic == MAGIC_NUMBER_FREE)
+    {
+        uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
+        RELADR_HEAD_UPDATE(prevblock_prev, RELADR_PREV_IDX(prevblock_prev), nextblock_startidx);
+        RELADR_HEAD_UPDATE(nextblock_startidx, prevblock_startidx, RELADR_NEXT_IDX(nextblock_startidx));
+        last_pos = prevblock_prev; /* double rewind pos */
+    }
+    else
+    {
+        RELADR_HEAD_UPDATE(prevblock_startidx, RELADR_PREV_IDX(prevblock_startidx), nextblock_startidx);
+        RELADR_HEAD_UPDATE(nextblock_startidx, baseindex, RELADR_NEXT_IDX(nextblock_startidx));
+        last_pos = prevblock_startidx; /* rewind pos */
+    }
+
+    /* destroy */
+    RELADR_HEAD_UPDATE_FREE(baseindex, prevblock_startidx); /* mark as freed */
+    uint32 size_to_subtract = (nextindex - baseindex);
+    logalloc_pool_cap -= size_to_subtract; /* update capacity */
+}
+#else
 void logalloc_free_memory(void* ptr)
 {
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
@@ -271,10 +320,109 @@ void logalloc_free_memory(void* ptr)
     uint32 size_to_subtract = (nextindex - baseindex);
     logalloc_pool_cap -= size_to_subtract; /* update capacity */
 }
+#endif
 
 /* for malloc */
 /* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
 * indexes point to header, not data. */
+#ifdef RELATIVE_INDEXING
+void* logalloc_allocate_memory(uint32 bytecount)
+{
+    uint32 curr_index = 0; /* must always point to header magic */
+    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
+    uint32 curr_index_prev, curr_index_next;
+
+    /* sanity check */
+    m_assert(logalloc_pool_cap + blocksize < MAX_POOL_SIZE, "logalloc pool out of memory");
+
+    /* start searching from last position for better performance */
+    curr_index = last_pos;
+
+    /* validate last_pos first */
+    if (RELADR_MAGIC_NUMBER(last_pos) != MAGIC_NUMBER)
+    {
+        /* if its not a valid address, start from zero and increment penalty counter */
+        last_pos = 0;
+        last_pos_perf_penalty++;
+    }
+
+    /* we have at least one block here */
+    while(1)
+    {
+        /* memory corruption detected */
+        m_assert(RELADR_MAGIC_NUMBER(curr_index) == MAGIC_NUMBER, "memory corruption detected in logalloc pool");
+
+        curr_index_prev = RELADR_PREV_IDX(curr_index);
+        curr_index_next = RELADR_NEXT_IDX(curr_index);
+
+        /* one iteration */
+        /* we searching in the middle of the list */
+        if (curr_index_next != 0x0)
+        {
+            /* make sure next block isnt corrupted */
+            m_assert(RELADR_MAGIC_NUMBER(curr_index_next) == MAGIC_NUMBER, 
+                "memory corruption detected in logalloc pool: next block header corrupted");
+            /* gap detection: mfree removes block by simply doing prev_block->next = curr_block->next,
+             * effectively skipping the freed block. 
+             * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
+            uint32 gap_index = RELADR_PREV_IDX(curr_index_next);
+            uint32 gapsize = curr_index_next - gap_index;
+            if (gapsize >= blocksize)
+            {
+                /* we have enough space to insert a new block here */
+                RELADR_HEAD_UPDATE(curr_index, curr_index_prev, gap_index); /* update current block's next to point to new block */
+                last_pos = gap_index;
+                logalloc_pool_cap += blocksize;
+                /* new block */
+                uint32 curr_index_next_copy = curr_index_next;
+                RELADR_HEAD_UPDATE(gap_index, curr_index, curr_index_next_copy); /* new block header */
+                if (gapsize == blocksize)
+                {
+                    /* perfect fit, we can just update the next block's prev to point to new block */
+                    RELADR_HEAD_UPDATE(curr_index_next_copy, gap_index, RELADR_NEXT_IDX(curr_index_next_copy));
+                }
+                else
+                {
+                    /* we can fit more, we need to update the next block's prev to point to new block's next
+                     * - we plant gap logic for future allocs here */
+                    uint32 post_gap_index = gap_index + blocksize;
+                    RELADR_HEAD_UPDATE(curr_index_next_copy, post_gap_index, RELADR_NEXT_IDX(curr_index_next_copy));
+
+                    /* if we were to deallocate, make it a lone island, 
+                     * and then try reallocating the left side with a smaller block; */
+                    /* we need to plant free magic here */
+                    RELADR_HEAD_UPDATE_FREE(post_gap_index, gap_index);
+                }
+
+                return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(gap_index)); /* return data area */
+            }
+            else
+            {
+                /* gap too small, keep looking */
+            }
+        }
+        else
+        {
+            /* check if we arrived at the end block (wraparound) */
+            if (curr_index_prev != 0x0)
+            {
+                curr_index_next = RELADR_NEXT_IDX(curr_index_next);
+            }
+            else if (curr_index_prev == 0x0)
+            {
+                /* this should never happen, means we have a corrupted block with invalid prev/next pointers */
+                m_assert(0, "memory corruption detected in logalloc pool: invalid prev/next pointers");
+            }
+        }
+
+        curr_index = curr_index_next; /* move to next block */
+        /* looped the whole pool and couldnt find a single spot to spare. */
+        m_assert(curr_index != last_pos, "searched the logalloc pool far and wide "
+            "but could not find a consecutive block to spare");
+    }
+    
+}
+#else
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
@@ -381,6 +529,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     }
     
 }
+#endif
 
 void* logalloc_realloc_memory(void* ptr, uint32 size)
 {
