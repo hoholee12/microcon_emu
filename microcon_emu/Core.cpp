@@ -192,25 +192,28 @@ void Core_start(Thread_data* mydata) {
 	// FOR NOW: we shall do test related init in here
 
 	logalloc_init();
-
-	// efree((uint32*)(logalloc_pool + 0x3));
-	// uint32* hello = emalloc(10 * sizeof(uint32));
-	// for(int i = -3; i < 10; i++){
-	// 	eprintf("%d\n", hello[i]);
-	// }
-	// efree(hello);
-	// hello = emalloc(10 * sizeof(uint32));
-	// for (int i = -3; i < 10; i++) {
-	// 	eprintf("%d\n", hello[i]);
-	// }
-	// efree(hello);
-	// hello = emalloc(12 * sizeof(uint32));
-	// for (int i = -3; i < 12; i++) {
-	// 	hello[i] = i;	// it will corrupt
-	// 	eprintf("%d\n", hello[i]);
-	// }
-	// efree(hello);
-	// exit(0);
+// #ifdef RELATIVE_INDEXING
+// 	efree((uint32*)(logalloc_pool + 0x2));
+// #else
+// 	efree((uint32*)(logalloc_pool + 0x3));
+// #endif
+// 	uint32* hello = emalloc(10 * sizeof(uint32));
+// 	for(int i = -3; i < 10; i++){
+// 		eprintf("%d\n", hello[i]);
+// 	}
+// 	efree(hello);
+// 	hello = emalloc(10 * sizeof(uint32));
+// 	for (int i = -3; i < 10; i++) {
+// 		eprintf("%d\n", hello[i]);
+// 	}
+// 	efree(hello);
+// 	hello = emalloc(12 * sizeof(uint32));
+// 	for (int i = -3; i < 12; i++) {
+// 		hello[i] = i;	// it will corrupt
+// 		eprintf("%d\n", hello[i]);
+// 	}
+// 	efree(hello);
+// 	exit(0);
 
 
 	Clock_init();

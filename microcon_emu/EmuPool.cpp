@@ -88,62 +88,6 @@ uint32 logalloc_pool_cap = 0;
 
 
 #ifdef RELATIVE_INDEXING
-
-// void logalloc_relidxinit()
-// {
-//     /* allocate relative indexing sentinel blocks */
-//     uint32 prev_pos = 0;
-//     uint32 prev_gap_pos = 3;
-//     uint32 curr_pos = 0;
-//     uint32 curr_gap_pos = 0;
-//     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(0);
-//     logalloc_block_header* gap_header = CONV_IDX_TO_ADDR(3);
-//     logalloc_block_header* last_header = CONV_IDX_TO_ADDR(last_alloc_pos);
-//     curr_header->magic = MAGIC_NUMBER;
-//     curr_header->next = UINT16_MAX;
-//     curr_header->prev = UINT16_MAX - last_alloc_pos; /* should be 3 */
-//     gap_header->magic = MAGIC_NUMBER_FREE;
-//     gap_header->prev = prev_pos;
-
-//     while(prev_pos + UINT16_MAX < last_alloc_pos)
-//     {
-//         curr_pos = prev_pos + curr_header->next;
-//         curr_gap_pos = prev_gap_pos + curr_header->next;
-
-//         curr_header = CONV_IDX_TO_ADDR(curr_pos);
-//         curr_header->magic = MAGIC_NUMBER;
-//         curr_header->prev = prev_pos;
-//         curr_header->next = UINT16_MAX;
-
-//         gap_header = CONV_IDX_TO_ADDR(curr_gap_pos);
-//         gap_header->magic = MAGIC_NUMBER_FREE;
-//         gap_header->prev = curr_pos;
-
-//         prev_pos += curr_header->next;
-//         prev_gap_pos += curr_header->next;
-//     }
-
-//     curr_pos = prev_pos + curr_header->next;
-//     curr_gap_pos = prev_gap_pos + curr_header->next;
-
-//     curr_header = CONV_IDX_TO_ADDR(curr_pos);
-//     curr_header->magic = MAGIC_NUMBER;
-//     curr_header->prev = prev_pos;
-//     curr_header->next = last_alloc_pos;
-
-//     if (curr_gap_pos < last_alloc_pos - (sizeof(logalloc_block_header) / sizeof(uint32)))
-//     {
-//         gap_header = CONV_IDX_TO_ADDR(curr_gap_pos);
-//         gap_header->magic = MAGIC_NUMBER_FREE;
-//         gap_header->prev = curr_pos;
-//         last_header->prev = curr_gap_pos;
-//     }
-//     else
-//     {
-//         last_header->prev = curr_pos;
-//     }
-// }
-
 void logalloc_init()
 {
     uint32 prev_pos = 0;
