@@ -17,9 +17,20 @@
 * total 5 maps to produce
 */
 
-/*
+/* "for now"
 * Code shall be 128KB (0x0 ~ 0x20000)
 * SRAM shall start at 0x20000000 and be 128KB (0x20000000 ~ 0x20020000)
+*/
+
+/*
+* in emulator, two bodies access the memory map: the emulator - and the emulated(target)
+* emulator: needs to run and do some changes to memory for every action inducing target behavior(like writing to a mirror, writing to a peripheral, etc.)
+* target: write like a normal target
+*
+* these two will run in tick(target) - tock(emulator).
+* target will access memory using Memory_XXX -> entry point to tock.
+* the 'tock' will simulate hardware behavior(like mirrors, peripherals, etc) and simulate cycle delay in case we emulate smp (the emulator will be a single thread only with tick - tock scheduling).
+* 
 */
 
 // typedefs / enums
@@ -51,7 +62,7 @@ struct Memory_map_elem {
 /*
 * section for peripheral memory access
 *
-* every cycle is scheduled (since its supposed to be a cycle accurate emulator)
+* every cycle is scheduled.
 * just like cpu, peripheral cycle is also explicit, meaning it will always run and have time to update in realtime.
 * making this subsystem as an interrupt scheduling will be very complex.
 * so we will make it a one time access flag system. (and make the access a queue per address)
