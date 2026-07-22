@@ -273,11 +273,11 @@ void logalloc_free_memory(void* ptr)
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
-    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
+    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
     uint32 curr_index_prev, curr_index_next;
 
     /* sanity check */
-    m_assert(logalloc_pool_cap + blocksize < MAX_POOL_SIZE, "logalloc pool out of memory");
+    m_assert(logalloc_pool_cap + blocksize < (MAX_POOL_SIZE / sizeof(uint32)), "logalloc pool out of memory");
 
     /* start searching from last position for better performance */
     curr_index = last_pos;
@@ -370,12 +370,12 @@ void* logalloc_allocate_memory(uint32 bytecount)
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
-    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in byte units */
+    uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
     uint32 curr_index_prev, curr_index_next;
     logalloc_block_header *curr_header, *curr_header_prev, *curr_header_next, *gap_header;
 
     /* sanity check */
-    m_assert(logalloc_pool_cap + blocksize < MAX_POOL_SIZE, "logalloc pool out of memory");
+    m_assert(logalloc_pool_cap + blocksize < (MAX_POOL_SIZE / sizeof(uint32)), "logalloc pool out of memory");
 
     /* start searching from last position for better performance */
     curr_index = last_pos;
