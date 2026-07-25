@@ -1,6 +1,7 @@
 #include "EmuPool.hpp"
 #include <vector>
 #include <ctime>
+#include <stdio.h>
 
 /* simple memory allocator for emulation structures
  * structure:
@@ -482,4 +483,20 @@ void* logalloc_realloc_memory(void* ptr, uint32 size)
 
     logalloc_free_memory(ptr);
     return temp;
+}
+
+void logalloc_dump_pool()
+{
+    FILE* outfile = fopen("logalloc_dump.bin", "wb");
+    
+    m_assert(outfile != NULL, "failed to open logalloc_dump.bin for writing");
+
+    /* write the entire logalloc_pool buffer to file */
+    size_t written = fwrite(logalloc_pool, sizeof(uint32), MAX_POOL_SIZE / sizeof(uint32), outfile);
+
+    m_assert(written == (MAX_POOL_SIZE / sizeof(uint32)), "failed to write to logalloc_dump.bin");
+
+    fclose(outfile);
+
+    printf("logalloc pool dumped to logalloc_dump.bin\n");
 }
