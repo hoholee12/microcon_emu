@@ -97,41 +97,57 @@ static inline logalloc_block_header RELADR_HEAD_ENCODE(uint32 index, uint32 firs
 }
 
 /* update function for header update; internally uses encode function */
-static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 previndex, uint32 nextindex) {
+static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 prevoffset, uint32 nextoffset) {
     uint32 firstword = MAGIC_NUMBER |
-                       (((previndex) >> 16) & 0xFF) << 8 |
-                       (((nextindex) >> 16) & 0xFF) << 16 |
-                       (((previndex) >> 8) & 0xFF) << 24;
+                       (((prevoffset) >> 16) & 0xFF) << 8 |
+                       (((nextoffset) >> 16) & 0xFF) << 16 |
+                       (((prevoffset) >> 8) & 0xFF) << 24;
     uint32 secondword = MAGIC_NUMBER |
-                        ((previndex) & 0xFF) << 8 |
-                        (((nextindex) >> 8) & 0xFF) << 16 |
-                        ((nextindex) & 0xFF) << 24;
+                        ((prevoffset) & 0xFF) << 8 |
+                        (((nextoffset) >> 8) & 0xFF) << 16 |
+                        ((nextoffset) & 0xFF) << 24;
     *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
 }
 
 /* update a free block header */
-static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 previndex) {
+static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 prevoffset) {
     uint32 firstword = MAGIC_NUMBER_FREE |
-                       (((previndex) >> 16) & 0xFF) << 8 |
-                       (((previndex) >> 8) & 0xFF) << 24;
+                       (((prevoffset) >> 16) & 0xFF) << 8 |
+                       (((prevoffset) >> 8) & 0xFF) << 24;
     uint32 secondword = MAGIC_NUMBER_FREE |
-                        ((previndex) & 0xFF) << 8;
+                        ((prevoffset) & 0xFF) << 8 |
+                        (0 << 16) |         /* nextoffset[15:8] = 0 (free blocks have no defined next) */
+                        (0 << 24);          /* nextoffset[23:16] = 0 */
     *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
 }
 
 /* get next and prev index functions; internally uses decode function */
 static inline uint32 RELADR_NEXT_IDX(uint32 index) {
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
-    return (((decoded.firstword >> 16) & 0xFF) << 16 |
+    uint32 next_offset = (((decoded.firstword >> 16) & 0xFF) << 16 |
             ((decoded.secondword >> 16) & 0xFF) << 8 |
             ((decoded.secondword >> 24) & 0xFF));
+    if (next_offset + index > (MAX_POOL_SIZE / sizeof(uint32))) {
+        /* overflow wraparound */
+        return next_offset - ((MAX_POOL_SIZE / sizeof(uint32)) - index);
+    }
+    else {
+        return index + next_offset;
+    }
 }
 
 static inline uint32 RELADR_PREV_IDX(uint32 index) {
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
-    return (((decoded.firstword >> 8) & 0xFF) << 16 |
+    uint32 prev_offset = (((decoded.firstword >> 8) & 0xFF) << 16 |
             ((decoded.firstword >> 24) & 0xFF) << 8 |
             ((decoded.secondword >> 8) & 0xFF));
+    if (prev_offset > index) {
+        /* underflow wraparound */
+        return (MAX_POOL_SIZE / sizeof(uint32)) - (prev_offset - index);
+    }
+    else {
+        return index - prev_offset;
+    }
 }
 
 /* get magic number function; internally uses decode function */

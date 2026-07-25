@@ -92,11 +92,13 @@ uint32 logalloc_pool_cap = 0;
 void logalloc_init()
 {
     uint32 prev_pos = 0;
-    uint32 prev_gap_pos = 3;
+    uint32 prev_gap_pos = 0;
     uint32 curr_pos = 0;
     uint32 curr_gap_pos = 0;
 
     uint32 blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
+    prev_gap_pos = blocksize; /* the first gap block is after the first sentinel block */
+
     memset(logalloc_pool, 0, sizeof(logalloc_pool));
     last_pos = 0;
     logalloc_pool_cap = 0;
@@ -104,32 +106,37 @@ void logalloc_init()
     if (last_alloc_pos <= UINT24_MAX)
     {
         /* allocate the first block for wraparound sentinel */
-        RELADR_HEAD_UPDATE(0, last_alloc_pos, last_alloc_pos); /* first block for wraparound */
-        RELADR_HEAD_UPDATE(last_alloc_pos, blocksize, 0); /* end block for wraparound */
+        RELADR_HEAD_UPDATE(0, blocksize, last_alloc_pos); /* first block: prev underflows from 0 by blocksize to reach last_alloc_pos */
+        /* create a free block in the middle to represent the gap for gap detection */
+        RELADR_HEAD_UPDATE_FREE(blocksize, blocksize); /* gap block: prev=first sentinel */
+        RELADR_HEAD_UPDATE(last_alloc_pos, blocksize, blocksize); /* end block: prev=gap, next=wraparound to 0 */
     }
     else
     {
-        RELADR_HEAD_UPDATE(0, UINT24_MAX - last_alloc_pos, UINT24_MAX); /* first block for wraparound */
+        RELADR_HEAD_UPDATE(0, blocksize, UINT24_MAX); /* first block for wraparound */
         while(prev_pos + UINT24_MAX < last_alloc_pos)
         {
             curr_pos = prev_pos + UINT24_MAX;
             curr_gap_pos = prev_gap_pos + UINT24_MAX;
 
             RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX, UINT24_MAX);
+            RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
 
-            RELADR_HEAD_UPDATE_FREE(curr_gap_pos, curr_pos);
-
-            prev_pos += UINT24_MAX;
-            prev_gap_pos += UINT24_MAX;
+            prev_pos = curr_pos;
+            prev_gap_pos = curr_gap_pos;
+            logalloc_pool_cap += blocksize;
         }
 
         /* last block */
-        RELADR_HEAD_UPDATE(last_alloc_pos, blocksize, 0); /* end block for wraparound */
+        RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX, last_alloc_pos - curr_pos); /* one last middle sentinel and a gap */
+        RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
+
+        RELADR_HEAD_UPDATE(last_alloc_pos, last_alloc_pos - curr_pos, blocksize); /* end block for wraparound */
 
     }
 
     last_pos = 0;
-    logalloc_pool_cap = blocksize * 2;
+    logalloc_pool_cap += blocksize * 3;
     last_pos_perf_penalty = 0;
 }
 #else
@@ -146,15 +153,21 @@ void logalloc_init()
     curr_header = CONV_IDX_TO_ADDR(0);
     curr_header->magic = MAGIC_NUMBER;
     curr_header->prev = last_alloc_pos;
-    curr_header->next = last_alloc_pos;
+    curr_header->next = blocksize;
+
+    /* create a free block in the middle to represent the gap for gap detection */
+    curr_header = CONV_IDX_TO_ADDR(blocksize);
+    curr_header->magic = MAGIC_NUMBER_FREE;
+    curr_header->prev = 0;
+    curr_header->next = 0; /* free blocks dont have a defined next index */
 
     curr_header = CONV_IDX_TO_ADDR(last_alloc_pos);
     curr_header->magic = MAGIC_NUMBER; /* end block for wraparound */
-    curr_header->prev = blocksize; /* prev points to the first block */
+    curr_header->prev = blocksize; /* prev points to the gap block */
     curr_header->next = 0; /* wraparound to index 0 */
 
     last_pos = 0;
-    logalloc_pool_cap = blocksize * 2;
+    logalloc_pool_cap = blocksize * 3;
 
     last_pos_perf_penalty = 0;
 }

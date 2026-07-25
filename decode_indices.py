@@ -106,14 +106,20 @@ class PoolValidator:
             is_freed = (magic_byte1 == MAGIC_NUMBER_FREED_REL and magic_byte2 == MAGIC_NUMBER_FREED_REL)
             
             if is_allocated or is_freed:
-                # Extract indices
-                prev_idx = (((decoded_first >> 8) & 0xFF) << 16) | \
-                           (((decoded_first >> 24) & 0xFF) << 8) | \
-                           ((decoded_second >> 8) & 0xFF)
+                # Extract relative offsets (24-bit values)
+                prev_offset = (((decoded_first >> 8) & 0xFF) << 16) | \
+                              (((decoded_first >> 24) & 0xFF) << 8) | \
+                              ((decoded_second >> 8) & 0xFF)
                 
-                next_idx = (((decoded_first >> 16) & 0xFF) << 16) | \
-                           (((decoded_second >> 16) & 0xFF) << 8) | \
-                           ((decoded_second >> 24) & 0xFF)
+                next_offset = (((decoded_first >> 16) & 0xFF) << 16) | \
+                              (((decoded_second >> 16) & 0xFF) << 8) | \
+                              ((decoded_second >> 24) & 0xFF)
+                
+                # Convert relative offsets to absolute indices
+                # next_idx = index + next_offset
+                # prev_idx = index - prev_offset (with uint32 underflow)
+                next_idx = (index + next_offset) & 0xFFFFFFFF
+                prev_idx = (index - prev_offset) & 0xFFFFFFFF
                 
                 status = "ALLOCATED" if is_allocated else "FREED"
                 
@@ -126,14 +132,16 @@ class PoolValidator:
                     'decoded_second': decoded_second,
                     'magic1': magic_byte1,
                     'magic2': magic_byte2,
+                    'prev_offset': prev_offset,
+                    'next_offset': next_offset,
                     'prev': prev_idx,
                     'next': next_idx,
                     'mode': 'RELATIVE',
                     'status': status
                 })
                 
-                print("  Header at idx=0x{0:06X}: ({1}) prev=0x{2:06X} next=0x{3:06X}".format(
-                    index, status, prev_idx, next_idx))
+                print("  Header at idx=0x{0:06X}: ({1}) prev_offset=0x{2:06X} next_offset=0x{3:06X} -> prev=0x{4:06X} next=0x{5:06X}".format(
+                    index, status, prev_offset, next_offset, prev_idx, next_idx))
             
             offset += HEADER_SIZE_REL
             scanned_blocks += 1
