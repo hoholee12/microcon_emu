@@ -106,10 +106,10 @@ void logalloc_init()
     if (last_alloc_pos <= UINT24_MAX)
     {
         /* allocate the first block for wraparound sentinel */
-        RELADR_HEAD_UPDATE(0, blocksize, last_alloc_pos); /* first block: prev underflows from 0 by blocksize to reach last_alloc_pos */
+        RELADR_HEAD_UPDATE(0, blocksize, last_alloc_pos); /* first: prevoffset underflows to last_alloc, nextoffset skips gap to last_alloc */
         /* create a free block in the middle to represent the gap for gap detection */
-        RELADR_HEAD_UPDATE_FREE(blocksize, blocksize); /* gap block: prev=first sentinel */
-        RELADR_HEAD_UPDATE(last_alloc_pos, blocksize, blocksize); /* end block: prev=gap, next=wraparound to 0 */
+        RELADR_HEAD_UPDATE_FREE(blocksize, blocksize); /* gap: prevoffset to first sentinel (not in forward chain) */
+        RELADR_HEAD_UPDATE(last_alloc_pos, last_alloc_pos - blocksize, blocksize); /* last: prevoffset to gap, nextoffset wraps to 0 */
     }
     else
     {
@@ -215,19 +215,37 @@ void logalloc_free_memory(void* ptr)
     if (prevblock_magic == MAGIC_NUMBER_FREE)
     {
         uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
-        RELADR_HEAD_UPDATE(prevblock_prev, RELADR_PREV_IDX(prevblock_prev), nextblock_startidx);
-        RELADR_HEAD_UPDATE(nextblock_startidx, prevblock_startidx, RELADR_NEXT_IDX(nextblock_startidx));
+        uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
+        uint32 prevblock_prev_prev = RELADR_PREV_IDX(prevblock_prev);
+        uint32 prevblock_prev_prevoff = (prevblock_prev >= prevblock_prev_prev) ? (prevblock_prev - prevblock_prev_prev) : (prevblock_prev + pool_size - prevblock_prev_prev);
+        uint32 prevblock_prev_nextoff = (nextblock_startidx >= prevblock_prev) ? (nextblock_startidx - prevblock_prev) : (pool_size - prevblock_prev + nextblock_startidx);
+        RELADR_HEAD_UPDATE(prevblock_prev, prevblock_prev_prevoff, prevblock_prev_nextoff);
+        
+        uint32 nextblock_prevoff = (nextblock_startidx >= prevblock_startidx) ? (nextblock_startidx - prevblock_startidx) : (nextblock_startidx + pool_size - prevblock_startidx);
+        uint32 nextblock_next = RELADR_NEXT_IDX(nextblock_startidx);
+        uint32 nextblock_nextoff = (nextblock_next >= nextblock_startidx) ? (nextblock_next - nextblock_startidx) : (pool_size - nextblock_startidx + nextblock_next);
+        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_prevoff, nextblock_nextoff);
         last_pos = prevblock_prev; /* double rewind pos */
     }
     else
     {
-        RELADR_HEAD_UPDATE(prevblock_startidx, RELADR_PREV_IDX(prevblock_startidx), nextblock_startidx);
-        RELADR_HEAD_UPDATE(nextblock_startidx, baseindex, RELADR_NEXT_IDX(nextblock_startidx));
+        uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
+        uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
+        uint32 prevblock_prevoff = (prevblock_startidx >= prevblock_prev) ? (prevblock_startidx - prevblock_prev) : (prevblock_startidx + pool_size - prevblock_prev);
+        uint32 prevblock_nextoff = (nextblock_startidx >= prevblock_startidx) ? (nextblock_startidx - prevblock_startidx) : (pool_size - prevblock_startidx + nextblock_startidx);
+        RELADR_HEAD_UPDATE(prevblock_startidx, prevblock_prevoff, prevblock_nextoff);
+        
+        uint32 nextblock_prevoff = (nextblock_startidx >= baseindex) ? (nextblock_startidx - baseindex) : (nextblock_startidx + pool_size - baseindex);
+        uint32 nextblock_next = RELADR_NEXT_IDX(nextblock_startidx);
+        uint32 nextblock_nextoff = (nextblock_next >= nextblock_startidx) ? (nextblock_next - nextblock_startidx) : (pool_size - nextblock_startidx + nextblock_next);
+        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_prevoff, nextblock_nextoff);
         last_pos = prevblock_startidx; /* rewind pos */
     }
 
     /* destroy */
-    RELADR_HEAD_UPDATE_FREE(baseindex, prevblock_startidx); /* mark as freed */
+    uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
+    uint32 baseindex_prevoff = (baseindex >= prevblock_startidx) ? (baseindex - prevblock_startidx) : (baseindex + pool_size - prevblock_startidx);
+    RELADR_HEAD_UPDATE_FREE(baseindex, baseindex_prevoff); /* mark as freed */
     uint32 size_to_subtract = (nextindex - baseindex);
     logalloc_pool_cap -= size_to_subtract; /* update capacity */
 }
@@ -328,28 +346,40 @@ void* logalloc_allocate_memory(uint32 bytecount)
             if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */
-                RELADR_HEAD_UPDATE(curr_index, curr_index_prev, gap_index); /* update current block's next to point to new block */
+                uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
+                uint32 curr_prevoff = (curr_index >= curr_index_prev) ? (curr_index - curr_index_prev) : (curr_index + pool_size - curr_index_prev);
+                uint32 curr_nextoff = (gap_index >= curr_index) ? (gap_index - curr_index) : (pool_size - curr_index + gap_index);
+                RELADR_HEAD_UPDATE(curr_index, curr_prevoff, curr_nextoff); /* update current block's next to point to new block */
                 last_pos = gap_index;
                 logalloc_pool_cap += blocksize;
                 /* new block */
                 uint32 curr_index_next_copy = curr_index_next;
-                RELADR_HEAD_UPDATE(gap_index, curr_index, curr_index_next_copy); /* new block header */
+                uint32 gap_prevoff = (gap_index >= curr_index) ? (gap_index - curr_index) : (gap_index + pool_size - curr_index);
+                uint32 gap_nextoff = (curr_index_next_copy >= gap_index) ? (curr_index_next_copy - gap_index) : (pool_size - gap_index + curr_index_next_copy);
+                RELADR_HEAD_UPDATE(gap_index, gap_prevoff, gap_nextoff); /* new block header */
                 if (gapsize == blocksize)
                 {
                     /* perfect fit, we can just update the next block's prev to point to new block */
-                    RELADR_HEAD_UPDATE(curr_index_next_copy, gap_index, RELADR_NEXT_IDX(curr_index_next_copy));
+                    uint32 next_prevoff = (curr_index_next_copy >= gap_index) ? (curr_index_next_copy - gap_index) : (curr_index_next_copy + pool_size - gap_index);
+                    uint32 next_next = RELADR_NEXT_IDX(curr_index_next_copy);
+                    uint32 next_nextoff = (next_next >= curr_index_next_copy) ? (next_next - curr_index_next_copy) : (pool_size - curr_index_next_copy + next_next);
+                    RELADR_HEAD_UPDATE(curr_index_next_copy, next_prevoff, next_nextoff);
                 }
                 else
                 {
                     /* we can fit more, we need to update the next block's prev to point to new block's next
                      * - we plant gap logic for future allocs here */
                     uint32 post_gap_index = gap_index + blocksize;
-                    RELADR_HEAD_UPDATE(curr_index_next_copy, post_gap_index, RELADR_NEXT_IDX(curr_index_next_copy));
+                    uint32 next_prevoff = (curr_index_next_copy >= post_gap_index) ? (curr_index_next_copy - post_gap_index) : (curr_index_next_copy + pool_size - post_gap_index);
+                    uint32 next_next = RELADR_NEXT_IDX(curr_index_next_copy);
+                    uint32 next_nextoff = (next_next >= curr_index_next_copy) ? (next_next - curr_index_next_copy) : (pool_size - curr_index_next_copy + next_next);
+                    RELADR_HEAD_UPDATE(curr_index_next_copy, next_prevoff, next_nextoff);
 
                     /* if we were to deallocate, make it a lone island, 
                      * and then try reallocating the left side with a smaller block; */
                     /* we need to plant free magic here */
-                    RELADR_HEAD_UPDATE_FREE(post_gap_index, gap_index);
+                    uint32 post_gap_prevoff = (post_gap_index >= gap_index) ? (post_gap_index - gap_index) : (post_gap_index + pool_size - gap_index);
+                    RELADR_HEAD_UPDATE_FREE(post_gap_index, post_gap_prevoff);
                 }
 
                 return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(gap_index)); /* return data area */
