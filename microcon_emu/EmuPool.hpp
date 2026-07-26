@@ -37,6 +37,7 @@ extern void* logalloc_allocate_memory(uint32 size);
 extern void* logalloc_realloc_memory(void* ptr, uint32 size);
 extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();
+extern void logalloc_reposition_last_pos(void* ptr);
 extern void logalloc_dump_pool();
 
 /* extra functions for performance */
