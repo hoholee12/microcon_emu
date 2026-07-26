@@ -192,6 +192,8 @@ void Core_start(Thread_data* mydata) {
 	// FOR NOW: we shall do test related init in here
 
 	logalloc_init();
+
+
 // #ifdef RELATIVE_INDEXING
 // 	efree((uint32*)(logalloc_pool + 0x2));
 // #else
@@ -215,68 +217,68 @@ void Core_start(Thread_data* mydata) {
 	// efree(hello); // this should cause assertion error
 
 	/* memory allocator aging test */
-	// /* TC1: allocate and free a 999KB block 1000 times */
-	// for (int i = 0; i < 1000; i++) {
-	// 	uint32* test = emalloc(999 * 1024);
-	// 	efree(test);
-	// }
+	/* TC1: allocate and free a 999KB block 1000 times */
+	for (int i = 0; i < 1000; i++) {
+		uint32* test = emalloc(999 * 1024);
+		efree(test);
+	}
 
-	// /* TC2: allocate a 9KB block 1000 times */
-	// for (int i = 0; i < 1000; i++) {
-	// 	uint32* test = emalloc(9 * 1024);
-	// 	efree(test);
-	// }
+	/* TC2: allocate a 9KB block 1000 times */
+	for (int i = 0; i < 1000; i++) {
+		uint32* test = emalloc(9 * 1024);
+		efree(test);
+	}
 
-	// /* TC3: small allocations (1KB), high frequency */
-	// for (int i = 0; i < 5000; i++) {
-	// 	uint32* test = emalloc(1 * 1024);
-	// 	efree(test);
-	// }
+	/* TC3: small allocations (1KB), high frequency */
+	for (int i = 0; i < 5000; i++) {
+		uint32* test = emalloc(1 * 1024);
+		efree(test);
+	}
 
-	// /* TC4: medium allocations (100KB), moderate frequency */
-	// for (int i = 0; i < 500; i++) {
-	// 	uint32* test = emalloc(100 * 1024);
-	// 	efree(test);
-	// }
+	/* TC4: medium allocations (100KB), moderate frequency */
+	for (int i = 0; i < 500; i++) {
+		uint32* test = emalloc(100 * 1024);
+		efree(test);
+	}
 
-	// /* TC5: mixed size allocations in single iteration */
-	// for (int i = 0; i < 500; i++) {
-	// 	uint32* test1 = emalloc(10 * 1024);
-	// 	uint32* test2 = emalloc(50 * 1024);
-	// 	uint32* test3 = emalloc(5 * 1024);
-	// 	efree(test1);
-	// 	efree(test2);
-	// 	efree(test3);
-	// }
+	/* TC5: mixed size allocations in single iteration */
+	for (int i = 0; i < 500; i++) {
+		uint32* test1 = emalloc(10 * 1024);
+		uint32* test2 = emalloc(50 * 1024);
+		uint32* test3 = emalloc(5 * 1024);
+		efree(test1);
+		efree(test2);
+		efree(test3);
+	}
 
-	// /* TC6: multiple allocations before freeing (fragmentation test) */
-	// for (int i = 0; i < 100; i++) {
-	// 	uint32* blocks[10];
-	// 	for (int j = 0; j < 10; j++) {
-	// 		blocks[j] = emalloc(32 * 1024);
-	// 	}
-	// 	for (int j = 0; j < 10; j++) {
-	// 		efree(blocks[j]);
-	// 	}
-	// }
+	/* TC6: multiple allocations before freeing (fragmentation test) */
+	for (int i = 0; i < 100; i++) {
+		uint32* blocks[10];
+		for (int j = 0; j < 10; j++) {
+			blocks[j] = emalloc(32 * 1024);
+		}
+		for (int j = 0; j < 10; j++) {
+			efree(blocks[j]);
+		}
+	}
 
-	// /* TC7: alternating large and small blocks */
-	// for (int i = 0; i < 500; i++) {
-	// 	uint32* large = emalloc(512 * 1024);
-	// 	uint32* small_block = emalloc(2 * 1024);
-	// 	efree(small_block);
-	// 	efree(large);
-	// }
+	/* TC7: alternating large and small blocks */
+	for (int i = 0; i < 500; i++) {
+		uint32* large = emalloc(512 * 1024);
+		uint32* small_block = emalloc(2 * 1024);
+		efree(small_block);
+		efree(large);
+	}
 
-	// /* TC8: stress test with varying allocation patterns */
-	// for (int i = 0; i < 200; i++) {
-	// 	uint32* test1 = emalloc(64 * 1024);
-	// 	uint32* test2 = emalloc(16 * 1024);
-	// 	uint32* test3 = emalloc(128 * 1024);
-	// 	efree(test2);
-	// 	efree(test1);
-	// 	efree(test3);
-	// }
+	/* TC8: stress test with varying allocation patterns */
+	for (int i = 0; i < 200; i++) {
+		uint32* test1 = emalloc(64 * 1024);
+		uint32* test2 = emalloc(16 * 1024);
+		uint32* test3 = emalloc(128 * 1024);
+		efree(test2);
+		efree(test1);
+		efree(test3);
+	}
 
 	
 	logalloc_dump_pool();

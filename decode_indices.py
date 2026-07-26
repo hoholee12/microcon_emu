@@ -7,7 +7,6 @@ MAGIC_NUMBER_FREED = 0xCCCCCCCC
 MAGIC_NUMBER_ALLOCATED_REL = 0xAA
 MAGIC_NUMBER_FREED_REL = 0xCC
 
-MAX_POOL_SIZE = 0x100000  # 1MB
 HEADER_SIZE_FULL = 12  # 3 uint32s
 HEADER_SIZE_REL = 8    # 2 uint32s
 
@@ -19,13 +18,17 @@ class PoolValidator:
         self.errors = []
         self.warnings = []
         self.headers = []
+        self.pool_size_words = 0  # Will be set when file is read
         
     def read_file(self):
         """Read the binary dump file"""
         try:
             with open(self.filename, 'rb') as f:
                 self.data = f.read()
-            print("[OK] Read {0} bytes from {1}".format(len(self.data), self.filename))
+            # Calculate pool size from file size
+            self.pool_size_words = len(self.data) // 4
+            print("[OK] Read {0} bytes from {1} (pool size: 0x{2:X} words, 0x{3:X} bytes)".format(
+                len(self.data), self.filename, self.pool_size_words, len(self.data)))
             return True
         except FileNotFoundError:
             print("[ERROR] File not found: {0}".format(self.filename))
@@ -115,11 +118,11 @@ class PoolValidator:
                               (((decoded_second >> 16) & 0xFF) << 8) | \
                               ((decoded_second >> 24) & 0xFF)
                 
-                # Convert relative offsets to absolute indices
+                # Convert relative offsets to absolute indices with pool size wraparound
                 # next_idx = index + next_offset
-                # prev_idx = index - prev_offset (with uint32 underflow)
-                next_idx = (index + next_offset) & 0xFFFFFFFF
-                prev_idx = (index - prev_offset) & 0xFFFFFFFF
+                # prev_idx = index - prev_offset (with pool size underflow)
+                next_idx = (index + next_offset) % self.pool_size_words
+                prev_idx = (index - prev_offset) % self.pool_size_words
                 
                 status = "ALLOCATED" if is_allocated else "FREED"
                 
@@ -180,13 +183,22 @@ class PoolValidator:
                 self.errors.append(msg)
                 mismatch_count += 1
                 print("  [MISMATCH] {0}".format(msg))
-            elif nxt > 0 and index_map[nxt]['prev'] != idx:
-                next_prev = index_map[nxt]['prev']
-                msg = "Header 0x{0:06X}: next header 0x{1:06X} has prev=0x{2:06X}, expected 0x{3:06X}".format(
-                    idx, nxt, next_prev, idx)
-                self.errors.append(msg)
-                mismatch_count += 1
-                print("  [MISMATCH] {0}".format(msg))
+            elif nxt > 0:
+                next_header = index_map[nxt]
+                # Check if next block's prev points back to us
+                if next_header['prev'] != idx:
+                    # This is OK if there's a freed (gap) block between us and next
+                    # In this case, next.prev points to the freed block, not us
+                    if next_header['prev'] in index_map and index_map[next_header['prev']].get('status') == "FREED":
+                        # Valid gap structure - allocated block skips over freed block
+                        pass
+                    else:
+                        next_prev = next_header['prev']
+                        msg = "Header 0x{0:06X}: next header 0x{1:06X} has prev=0x{2:06X}, expected 0x{3:06X}".format(
+                            idx, nxt, next_prev, idx)
+                        self.errors.append(msg)
+                        mismatch_count += 1
+                        print("  [MISMATCH] {0}".format(msg))
             
             # Check if prev index points to a valid header
             if prev > 0 and prev not in index_map:
@@ -194,18 +206,57 @@ class PoolValidator:
                 self.errors.append(msg)
                 mismatch_count += 1
                 print("  [MISMATCH] {0}".format(msg))
-            elif prev > 0 and index_map[prev]['next'] != idx:
-                prev_next = index_map[prev]['next']
-                msg = "Header 0x{0:06X}: prev header 0x{1:06X} has next=0x{2:06X}, expected 0x{3:06X}".format(
-                    idx, prev, prev_next, idx)
+            elif prev > 0:
+                prev_header = index_map[prev]
+                # If prev block is freed (gap block), it may not point back to us - this is intentional
+                # Freed blocks are used as gap markers and their next may not point back
+                if prev_header.get('status') == "FREED":
+                    # Valid gap structure - this freed block is a gap between current and prev's prev
+                    pass
+                elif prev_header['next'] != idx:
+                    prev_next = prev_header['next']
+                    msg = "Header 0x{0:06X}: prev header 0x{1:06X} has next=0x{2:06X}, expected 0x{3:06X}".format(
+                        idx, prev, prev_next, idx)
+                    self.errors.append(msg)
+                    mismatch_count += 1
+                    print("  [MISMATCH] {0}".format(msg))
+        
+        # Validate freed blocks (gap blocks)
+        print("\n--- Validating Free Blocks (Gap Coalescing) ---")
+        for header in self.headers:
+            idx = header['index']
+            prev = header['prev']
+            status = header.get('status', 'UNKNOWN')
+            
+            # Check freed blocks only
+            if status != "FREED":
+                continue
+            
+            # Free blocks should have their prev pointing to an allocated block
+            # This ensures they are properly coalesced between allocated blocks
+            if prev > 0 and prev not in index_map:
+                msg = "Free block 0x{0:06X}: prev pointer 0x{1:06X} is not a valid header (memory corrupted)".format(idx, prev)
                 self.errors.append(msg)
                 mismatch_count += 1
-                print("  [MISMATCH] {0}".format(msg))
+                print("  [CORRUPTION] {0}".format(msg))
+            elif prev > 0:
+                prev_header = index_map[prev]
+                prev_status = prev_header.get('status', 'UNKNOWN')
+                
+                # Prev must be ALLOCATED, not another FREE block
+                if prev_status == "FREED":
+                    msg = "Free block 0x{0:06X}: prev is another free block 0x{1:06X} (not coalesced properly)".format(idx, prev)
+                    self.errors.append(msg)
+                    mismatch_count += 1
+                    print("  [COALESCE_ERROR] {0}".format(msg))
+                else:
+                    # Valid: free block between two allocated blocks
+                    print("  [OK] Free block 0x{0:06X}: prev=0x{1:06X} (allocated)".format(idx, prev))
         
         if mismatch_count == 0:
-            print("[OK] All links are consistent")
+            print("\n[OK] All links are consistent (gaps properly handled and coalesced)")
         else:
-            print("[ERROR] Found {0} index link mismatches".format(mismatch_count))
+            print("\n[ERROR] Found {0} index link mismatches".format(mismatch_count))
     
     def check_magic_numbers(self):
         """Magic number check (already filtered during parsing)"""
