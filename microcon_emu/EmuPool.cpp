@@ -532,8 +532,13 @@ void* logalloc_realloc_memory(void* ptr, uint32 size)
 void logalloc_reposition_last_pos(void* ptr)
 {
     last_pos = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
+#ifdef RELATIVE_INDEXING
     m_assert(RELADR_MAGIC_NUMBER(last_pos) == MAGIC_NUMBER, "you are passing an invalid pointer. "
         "last_pos must point to a valid allocated block in the logalloc pool");
+#else
+    m_assert(CONV_IDX_TO_ADDR(last_pos)->magic == MAGIC_NUMBER, "you are passing an invalid pointer. "
+        "last_pos must point to a valid allocated block in the logalloc pool");
+#endif
 }
 
 void logalloc_dump_pool()

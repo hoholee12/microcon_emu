@@ -61,6 +61,7 @@ class PoolValidator:
         offset = 0
         scanned_blocks = 0
         
+        # Scan every 4-byte (word) boundary to catch sentinels at any alignment
         while offset + HEADER_SIZE_FULL <= len(self.data):
             magic, prev, nxt = struct.unpack('<III', self.data[offset:offset + HEADER_SIZE_FULL])
             index = offset // 4  # Convert byte offset to word index
@@ -80,7 +81,7 @@ class PoolValidator:
                 print("  Header at idx=0x{0:06X}: magic=0x{1:08X} ({2}) prev=0x{3:06X} next=0x{4:06X}".format(
                     index, magic, status, prev, nxt))
             
-            offset += HEADER_SIZE_FULL
+            offset += 4  # Scan every word (4 bytes), not every header (12 bytes)
             scanned_blocks += 1
         
         print("[OK] Found {0} headers out of {1} scanned blocks".format(len(self.headers), scanned_blocks))
@@ -92,6 +93,7 @@ class PoolValidator:
         offset = 0
         scanned_blocks = 0
         
+        # Scan every 4-byte (word) boundary to catch headers at any alignment
         while offset + HEADER_SIZE_REL <= len(self.data):
             firstword, secondword = struct.unpack('<II', self.data[offset:offset + HEADER_SIZE_REL])
             index = offset // 4  # Convert byte offset to word index
@@ -146,7 +148,7 @@ class PoolValidator:
                 print("  Header at idx=0x{0:06X}: ({1}) prev_offset=0x{2:06X} next_offset=0x{3:06X} -> prev=0x{4:06X} next=0x{5:06X}".format(
                     index, status, prev_offset, next_offset, prev_idx, next_idx))
             
-            offset += HEADER_SIZE_REL
+            offset += 4  # Scan every word (4 bytes), not every header (8 bytes)
             scanned_blocks += 1
         
         print("[OK] Found {0} headers out of {1} scanned blocks".format(len(self.headers), scanned_blocks))
