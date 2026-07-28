@@ -293,6 +293,7 @@ void logalloc_free_memory(void* ptr)
 
     /* destroy */
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
+    curr_header->next = 0; /* free blocks dont have a defined next index */
     uint32 size_to_subtract = (nextindex - baseindex);
     logalloc_pool_cap -= size_to_subtract; /* update capacity */
 }
