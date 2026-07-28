@@ -319,5 +319,5 @@ class PoolValidator:
 
 
 if __name__ == "__main__":
-    validator = PoolValidator("microcon_emu/logalloc_dump.bin")
+    validator = PoolValidator("logalloc_dump.bin")
     success = validator.validate()

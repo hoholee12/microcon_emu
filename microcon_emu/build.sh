@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")"
 
 CXX="g++"
-CXXFLAGS="-Wall -Wextra -g"
+CXXFLAGS="-Wall -Wextra -g -fpermissive"
 LDFLAGS="-lpthread"
 
 SOURCES=(main.cpp Proxy.cpp Core.cpp CPU.cpp CPU_Instructions.cpp Memory.cpp Clock.cpp EmuPool.cpp X86Emitter.cpp)
