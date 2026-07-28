@@ -278,17 +278,13 @@ class PoolValidator:
         
         if self.errors:
             print("\nERRORS:")
-            for error in self.errors[:20]:
+            for error in self.errors:
                 print("  - {0}".format(error))
-            if len(self.errors) > 20:
-                print("  ... and {0} more".format(len(self.errors) - 20))
         
         if self.warnings:
             print("\nWARNINGS:")
-            for warning in self.warnings[:20]:
+            for warning in self.warnings:
                 print("  - {0}".format(warning))
-            if len(self.warnings) > 20:
-                print("  ... and {0} more".format(len(self.warnings) - 20))
         
         if not self.errors and not self.warnings:
             print("\n[OK] Pool validation PASSED - No errors found")
