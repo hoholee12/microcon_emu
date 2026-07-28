@@ -135,7 +135,6 @@ void hello_opt(int* data, int* value) {
 		case op111:
 			return;
 		default:
-			__assume(0);	// this shit dont really matter, the compiler already optimizes it out on O0
 			break;
 		}
 	}

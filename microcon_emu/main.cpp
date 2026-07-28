@@ -12,46 +12,25 @@ int main(int argc, char** argv) {
 
 	Core_start(&mydata);
 
-	HANDLE thread = make_thread(&mydata);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	thread_handle_t thread = make_thread(&mydata);
 
 	if (thread) {
 		/*
 		while (1) {
-			Sleep(1000);
+			Clock_sleep(1000);
 			Core_pause();
-			Sleep(1000);
+			Clock_sleep(1000);
 			Core_resume();
-			Sleep(500);
+			Clock_sleep(500);
 			Core_pause();
-			Sleep(500);
+			Clock_sleep(500);
 			Core_resume();
 		}
 		*/
 
-		//pthread_join equivalent
-		WaitForSingleObject(thread, INFINITE);
-	
+		// Wait for thread to complete (pthread_join equivalent)
+		wait_thread(thread);
 	}
-
-
-
-
-
 
 	return 0;
 }
