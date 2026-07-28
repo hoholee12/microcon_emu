@@ -153,7 +153,7 @@ void logalloc_init()
     curr_header = CONV_IDX_TO_ADDR(0);
     curr_header->magic = MAGIC_NUMBER;
     curr_header->prev = last_alloc_pos;
-    curr_header->next = blocksize;
+    curr_header->next = last_alloc_pos;
 
     /* create a free block in the middle to represent the gap for gap detection */
     curr_header = CONV_IDX_TO_ADDR(blocksize);
