@@ -122,12 +122,25 @@ static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 prevoffset) {
     *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
 }
 
-/* get next and prev index functions; internally uses decode function */
-static inline uint32 RELADR_NEXT_IDX(uint32 index) {
+static inline uint32 RELADR_NEXT_OFFSET(uint32 index) {
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
     uint32 next_offset = (((decoded.firstword >> 16) & 0xFF) << 16 |
             ((decoded.secondword >> 16) & 0xFF) << 8 |
             ((decoded.secondword >> 24) & 0xFF));
+    return next_offset;
+}
+
+static inline uint32 RELADR_PREV_OFFSET(uint32 index) {
+    logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
+    uint32 prev_offset = (((decoded.firstword >> 8) & 0xFF) << 16 |
+            ((decoded.firstword >> 24) & 0xFF) << 8 |
+            ((decoded.secondword >> 8) & 0xFF));
+    return prev_offset;
+}
+
+/* get next and prev index functions; internally uses decode function */
+static inline uint32 RELADR_NEXT_IDX(uint32 index) {
+    uint32 next_offset = RELADR_NEXT_OFFSET(index);
     if (next_offset + index > (MAX_POOL_SIZE / sizeof(uint32))) {
         /* overflow wraparound */
         return next_offset - ((MAX_POOL_SIZE / sizeof(uint32)) - index);
@@ -138,10 +151,7 @@ static inline uint32 RELADR_NEXT_IDX(uint32 index) {
 }
 
 static inline uint32 RELADR_PREV_IDX(uint32 index) {
-    logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
-    uint32 prev_offset = (((decoded.firstword >> 8) & 0xFF) << 16 |
-            ((decoded.firstword >> 24) & 0xFF) << 8 |
-            ((decoded.secondword >> 8) & 0xFF));
+    uint32 prev_offset = RELADR_PREV_OFFSET(index);
     if (prev_offset > index) {
         /* underflow wraparound */
         return (MAX_POOL_SIZE / sizeof(uint32)) - (prev_offset - index);
