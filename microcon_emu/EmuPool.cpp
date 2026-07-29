@@ -201,14 +201,16 @@ void logalloc_free_memory(void* ptr)
     uint32 nextblock_prev = RELADR_PREV_IDX(nextblock_startidx);
     uint32 prevblock_magic = RELADR_MAGIC_NUMBER(prevblock_startidx);
 
-    /* coalesce if next block is a freed block */
+    /* nextindex for calculating and subtracting current block size
+     * there can be a gap between current and next allocated */
     if (RELADR_MAGIC_NUMBER(nextblock_prev) == MAGIC_NUMBER_FREE)
     {
-        nextindex = nextblock_prev;
+        real_nextindex = nextblock_prev;
     }
+    /* ...or no gap */
     else
     {
-        nextindex = nextblock_startidx;
+        real_nextindex = nextblock_startidx;
     }
 
     /* coalesce if previous block is a freed block */
@@ -246,15 +248,14 @@ void logalloc_free_memory(void* ptr)
     uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
     uint32 baseindex_prevoff = (baseindex >= prevblock_startidx) ? (baseindex - prevblock_startidx) : (baseindex + pool_size - prevblock_startidx);
     RELADR_HEAD_UPDATE_FREE(baseindex, baseindex_prevoff); /* mark as freed */
-    uint32 size_to_subtract = (nextindex - baseindex);
-    logalloc_pool_cap -= size_to_subtract; /* update capacity */
+    logalloc_pool_cap -= (real_nextindex - baseindex); /* update capacity */
 }
 #else
 void logalloc_free_memory(void* ptr)
 {
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
-    uint32 nextindex = 0;
+    uint32 real_nextindex = 0;
     m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     
     m_assert(((baseindex != 0) && (baseindex != last_alloc_pos)), 
@@ -267,35 +268,38 @@ void logalloc_free_memory(void* ptr)
     logalloc_block_header* prevblock_header = CONV_IDX_TO_ADDR(prevblock_startidx);
     logalloc_block_header* nextblock_header = CONV_IDX_TO_ADDR(nextblock_startidx);
 
-    /* coalesce if next block is a freed block */
+    /* nextindex for calculating and subtracting current block size
+     * there can be a gap between current and next allocated */
     if (CONV_IDX_TO_ADDR(nextblock_header->prev)->magic == MAGIC_NUMBER_FREE)
     {
-        nextindex = nextblock_header->prev;
+        real_nextindex = nextblock_header->prev;
     }
+    /* ...or no gap */
     else
     {
-        nextindex = nextblock_startidx;
+        real_nextindex = nextblock_startidx;
     }
 
-    /* coalesce if previous block is a freed block */
+    /* 1 step coalesce when previous block is also a freed block
+     * (necessary to maintain links for all allocated blocks) */
     if (prevblock_header->magic == MAGIC_NUMBER_FREE)
     {
         CONV_IDX_TO_ADDR(prevblock_header->prev)->next = nextblock_startidx;
-        nextblock_header->prev = prevblock_startidx;
+        nextblock_header->prev = prevblock_startidx; /* new gap */
         last_pos = prevblock_header->prev; /* double rewind pos */
     }
+    /* prev is an allocated block; we can simply link prev - next */
     else
     {
         prevblock_header->next = nextblock_startidx;
-        nextblock_header->prev = baseindex;
+        nextblock_header->prev = baseindex; /* new gap */
         last_pos = prevblock_startidx; /* rewind pos */
     }
 
     /* destroy */
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
     curr_header->next = 0; /* free blocks dont have a defined next index */
-    uint32 size_to_subtract = (nextindex - baseindex);
-    logalloc_pool_cap -= size_to_subtract; /* update capacity */
+    logalloc_pool_cap -= (real_nextindex - baseindex); /* update capacity */
 }
 #endif
 
