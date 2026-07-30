@@ -274,6 +274,12 @@ class PoolValidator:
                             print("    [ERROR] {0}".format(msg))
                             has_dead_link = True
                             break
+
+                        # If we go through more than 1 FREE block, its improperly coalesced, and possibly a broken link.
+                        if len(trace_path) > 1:
+                            msg = "Allocated block 0x{0:06X}: FREE chain has multiple FREE blocks (improperly coalesced)".format(idx)
+                            self.warnings.append(msg)
+                            print("    [WARN] {0}".format(msg))
                         
                         visited.add(current_idx)
                         
