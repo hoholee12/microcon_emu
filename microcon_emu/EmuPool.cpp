@@ -492,6 +492,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
                     logalloc_block_header* post_gap_header = CONV_IDX_TO_ADDR(post_gap_index);
                     post_gap_header->magic = MAGIC_NUMBER_FREE;
                     post_gap_header->prev = gap_index;
+                    post_gap_header->next = 0; /* free blocks dont have a defined next index */
                 }
 
                 return CONV_ADDR_TO_BODY(gap_header); /* return data area */
