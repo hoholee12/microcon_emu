@@ -165,96 +165,179 @@ class PoolValidator:
         # Build index map for fast lookup
         index_map = {h['index']: h for h in self.headers}
         
-        mismatch_count = 0
+        # Find sentinels (start and end of pool)
+        print("\n--- Finding Sentinels ---")
+        sorted_headers = sorted(self.headers, key=lambda h: h['index'])
+        first_header = sorted_headers[0]
+        last_header = sorted_headers[-1]
         
-        for header in self.headers:
+        print("  First header at idx=0x{0:06X}, status={1}".format(
+            first_header['index'], first_header.get('status', 'UNKNOWN')))
+        print("  Last header at idx=0x{0:06X}, status={1}".format(
+            last_header['index'], last_header.get('status', 'UNKNOWN')))
+        
+        # Validate sentinels are allocated blocks
+        if first_header.get('status') != 'ALLOCATED':
+            msg = "First sentinel at 0x{0:06X} is not ALLOCATED (status={1})".format(
+                first_header['index'], first_header.get('status'))
+            self.errors.append(msg)
+            print("  [ERROR] {0}".format(msg))
+        else:
+            print("  [OK] First sentinel is ALLOCATED")
+        
+        if last_header.get('status') != 'ALLOCATED':
+            msg = "Last sentinel at 0x{0:06X} is not ALLOCATED (status={1})".format(
+                last_header['index'], last_header.get('status'))
+            self.errors.append(msg)
+            print("  [ERROR] {0}".format(msg))
+        else:
+            print("  [OK] Last sentinel is ALLOCATED")
+        
+        # Verify sentinels link to each other (circular structure)
+        print("\n--- Validating Sentinel Links (Circular Structure) ---")
+        first_prev = first_header['prev']
+        last_next = last_header['next']
+        
+        if first_prev != last_header['index']:
+            msg = "First sentinel prev=0x{0:06X}, expected last sentinel at 0x{1:06X}".format(
+                first_prev, last_header['index'])
+            self.errors.append(msg)
+            print("  [ERROR] {0}".format(msg))
+        else:
+            print("  [OK] First sentinel.prev -> Last sentinel")
+        
+        if last_next != first_header['index']:
+            msg = "Last sentinel next=0x{0:06X}, expected first sentinel at 0x{1:06X}".format(
+                last_next, first_header['index'])
+            self.errors.append(msg)
+            print("  [ERROR] {0}".format(msg))
+        else:
+            print("  [OK] Last sentinel.next -> First sentinel")
+        
+        # Validate allocated blocks
+        print("\n--- Validating Allocated Blocks ---")
+        allocated_blocks = [h for h in self.headers if h.get('status') == 'ALLOCATED']
+        
+        for header in allocated_blocks:
             idx = header['index']
             prev = header['prev']
             nxt = header['next']
-            status = header.get('status', 'UNKNOWN')
             
-            # Skip validation for freed blocks - they are intentionally disconnected
-            # Freed blocks have their prev preserved but next may be removed for gap logic
-            if status == "FREED":
-                continue
-            
-            # For allocated blocks, validate bidirectional links
-            # Check if next index points to a valid header
-            if nxt > 0 and nxt not in index_map:
-                msg = "Header 0x{0:06X}: next pointer 0x{1:06X} points to non-existent header".format(idx, nxt)
-                self.errors.append(msg)
-                mismatch_count += 1
-                print("  [MISMATCH] {0}".format(msg))
-            elif nxt > 0:
+            # Rule 1: Allocated block's next must point to another ALLOCATED block (never FREE)
+            if nxt in index_map:
                 next_header = index_map[nxt]
-                # Check if next block's prev points back to us
-                if next_header['prev'] != idx:
-                    # This is OK if there's a freed (gap) block between us and next
-                    # In this case, next.prev points to the freed block, not us
-                    if next_header['prev'] in index_map and index_map[next_header['prev']].get('status') == "FREED":
-                        # Valid gap structure - allocated block skips over freed block
-                        pass
-                    else:
-                        next_prev = next_header['prev']
-                        msg = "Header 0x{0:06X}: next header 0x{1:06X} has prev=0x{2:06X}, expected 0x{3:06X}".format(
-                            idx, nxt, next_prev, idx)
-                        self.errors.append(msg)
-                        mismatch_count += 1
-                        print("  [MISMATCH] {0}".format(msg))
-            
-            # Check if prev index points to a valid header
-            if prev > 0 and prev not in index_map:
-                msg = "Header 0x{0:06X}: prev pointer 0x{1:06X} points to non-existent header".format(idx, prev)
-                self.errors.append(msg)
-                mismatch_count += 1
-                print("  [MISMATCH] {0}".format(msg))
-            elif prev > 0:
-                prev_header = index_map[prev]
-                # If prev block is freed (gap block), it may not point back to us - this is intentional
-                # Freed blocks are used as gap markers and their next may not point back
-                if prev_header.get('status') == "FREED":
-                    # Valid gap structure - this freed block is a gap between current and prev's prev
-                    pass
-                elif prev_header['next'] != idx:
-                    prev_next = prev_header['next']
-                    msg = "Header 0x{0:06X}: prev header 0x{1:06X} has next=0x{2:06X}, expected 0x{3:06X}".format(
-                        idx, prev, prev_next, idx)
+                next_status = next_header.get('status', 'UNKNOWN')
+                
+                if next_status == 'FREED':
+                    msg = "Allocated block 0x{0:06X}: next=0x{1:06X} points to FREE block (should only point to ALLOCATED)".format(
+                        idx, nxt)
                     self.errors.append(msg)
-                    mismatch_count += 1
-                    print("  [MISMATCH] {0}".format(msg))
-        
-        # Validate freed blocks (gap blocks)
-        print("\n--- Validating Free Blocks (Informational) ---")
-        for header in self.headers:
-            idx = header['index']
-            prev = header['prev']
-            status = header.get('status', 'UNKNOWN')
+                    print("  [ERROR] {0}".format(msg))
+                elif next_status == 'ALLOCATED':
+                    print("  [OK] Allocated 0x{0:06X}: next=0x{1:06X} (ALLOCATED)".format(idx, nxt))
+                else:
+                    msg = "Allocated block 0x{0:06X}: next=0x{1:06X} has unknown status".format(idx, nxt)
+                    self.warnings.append(msg)
+                    print("  [WARN] {0}".format(msg))
+            else:
+                if nxt != 0:
+                    msg = "Allocated block 0x{0:06X}: next=0x{1:06X} points to non-existent header".format(idx, nxt)
+                    self.errors.append(msg)
+                    print("  [ERROR] {0}".format(msg))
             
-            # Check freed blocks only
-            if status != "FREED":
-                continue
-            
-            # Free blocks should have their prev pointing to an allocated block
-            # This ensures they are properly coalesced between allocated blocks
-            if prev > 0 and prev not in index_map:
-                msg = "Free block 0x{0:06X}: prev pointer 0x{1:06X} is not a valid header (memory corrupted)".format(idx, prev)
-                print("  [CORRUPTION_WARN] {0}".format(msg))
-            elif prev > 0:
+            # Rule 2: Allocated block's prev should eventually reach another ALLOCATED block
+            # If it points to a FREE block, trace back through FREE blocks to find ALLOCATED
+            if prev in index_map:
                 prev_header = index_map[prev]
                 prev_status = prev_header.get('status', 'UNKNOWN')
                 
-                # Prev must be ALLOCATED, not another FREE block
-                if prev_status == "FREED":
-                    msg = "Free block 0x{0:06X}: prev is another free block 0x{1:06X} (not coalesced properly)".format(idx, prev)
-                    print("  [COALESCE_WARN] {0}".format(msg))
+                if prev_status == 'ALLOCATED':
+                    # Direct link to allocated - perfect
+                    print("  [OK] Allocated 0x{0:06X}: prev=0x{1:06X} (ALLOCATED)".format(idx, prev))
+                elif prev_status == 'FREED':
+                    # Trace back through FREE blocks to find the ALLOCATED block
+                    print("  [INFO] Allocated 0x{0:06X}: prev=0x{1:06X} is FREE, tracing back...".format(idx, prev))
+                    
+                    visited = set()
+                    current = prev_header
+                    trace_path = [prev]
+                    found_allocated = False
+                    has_dead_link = False
+                    
+                    while current and current.get('status') == 'FREED':
+                        current_idx = current['index']
+                        
+                        # Detect cycles
+                        if current_idx in visited:
+                            msg = "Allocated block 0x{0:06X}: FREE chain has cycle at 0x{1:06X}".format(idx, current_idx)
+                            self.errors.append(msg)
+                            print("    [ERROR] {0}".format(msg))
+                            has_dead_link = True
+                            break
+                        
+                        visited.add(current_idx)
+                        
+                        # Follow prev link
+                        prev_idx = current['prev']
+                        if prev_idx in index_map:
+                            prev_block = index_map[prev_idx]
+                            if prev_block.get('status') == 'ALLOCATED':
+                                # Reached allocated block - good
+                                trace_path.append(prev_idx)
+                                found_allocated = True
+                                print("    [OK] Trace: {0} -> 0x{1:06X} (ALLOCATED)".format(
+                                    " -> ".join("0x{0:06X}".format(x) for x in trace_path), prev_idx))
+                                break
+                            elif prev_block.get('status') == 'FREED':
+                                # Continue tracing through FREE blocks
+                                trace_path.append(prev_idx)
+                                current = prev_block
+                            else:
+                                msg = "Allocated block 0x{0:06X}: FREE chain reaches unknown status at 0x{1:06X}".format(
+                                    idx, prev_idx)
+                                self.errors.append(msg)
+                                print("    [ERROR] {0}".format(msg))
+                                has_dead_link = True
+                                break
+                        else:
+                            # Dead link - FREE block points to non-existent header
+                            msg = "Allocated block 0x{0:06X}: FREE chain has dead link at 0x{1:06X} (prev=0x{2:06X} does not exist)".format(
+                                idx, current_idx, prev_idx)
+                            self.errors.append(msg)
+                            print("    [ERROR] {0}".format(msg))
+                            has_dead_link = True
+                            break
+                    
+                    if not found_allocated and not has_dead_link:
+                        msg = "Allocated block 0x{0:06X}: FREE chain does not reach an ALLOCATED block".format(idx)
+                        self.errors.append(msg)
+                        print("    [ERROR] {0}".format(msg))
                 else:
-                    # Valid: free block between two allocated blocks
-                    print("  [OK] Free block 0x{0:06X}: prev=0x{1:06X} (allocated)".format(idx, prev))
+                    msg = "Allocated block 0x{0:06X}: prev=0x{1:06X} has unknown status".format(idx, prev)
+                    self.warnings.append(msg)
+                    print("  [WARN] {0}".format(msg))
+            else:
+                if prev != 0:
+                    msg = "Allocated block 0x{0:06X}: prev=0x{1:06X} points to non-existent header".format(idx, prev)
+                    self.errors.append(msg)
+                    print("  [ERROR] {0}".format(msg))
         
-        if mismatch_count == 0:
-            print("\n[OK] All links are consistent (gaps properly handled)")
+        # Info about free blocks (not errors - they're just leftover data)
+        print("\n--- Free Block Information (Not Validated) ---")
+        free_blocks = [h for h in self.headers if h.get('status') == 'FREED']
+        if free_blocks:
+            print("  Found {0} FREE blocks (leftover unused data, may be overwritten)".format(len(free_blocks)))
+            for fb in free_blocks[:5]:  # Show first 5
+                print("    FREE at idx=0x{0:06X}, prev=0x{1:06X}".format(fb['index'], fb['prev']))
+            if len(free_blocks) > 5:
+                print("    ... and {0} more FREE blocks".format(len(free_blocks) - 5))
         else:
-            print("\n[ERROR] Found {0} index link mismatches".format(mismatch_count))
+            print("  No FREE blocks found")
+        
+        if len(self.errors) == 0:
+            print("\n[OK] All link validations passed")
+        else:
+            print("\n[ERROR] Found {0} link validation errors".format(len(self.errors)))
     
     def check_magic_numbers(self):
         """Magic number check (already filtered during parsing)"""
