@@ -141,8 +141,9 @@ static inline uint32 RELADR_PREV_OFFSET(uint32 index) {
 /* get next and prev index functions; internally uses decode function */
 static inline uint32 RELADR_NEXT_IDX(uint32 index) {
     uint32 next_offset = RELADR_NEXT_OFFSET(index);
-    if (next_offset + index > (MAX_POOL_SIZE / sizeof(uint32))) {
-        /* overflow wraparound */
+    if (next_offset + index >= (MAX_POOL_SIZE / sizeof(uint32))) {
+        /* overflow wraparound 
+         * for 1MB, 0x0~0x3FFFF is the valid range while 0x40000 and up wraps around */
         return next_offset - ((MAX_POOL_SIZE / sizeof(uint32)) - index);
     }
     else {
@@ -153,7 +154,8 @@ static inline uint32 RELADR_NEXT_IDX(uint32 index) {
 static inline uint32 RELADR_PREV_IDX(uint32 index) {
     uint32 prev_offset = RELADR_PREV_OFFSET(index);
     if (prev_offset > index) {
-        /* underflow wraparound */
+        /* underflow wraparound
+         * no wrap on 0x0, only wraps if net negative */
         return (MAX_POOL_SIZE / sizeof(uint32)) - (prev_offset - index);
     }
     else {

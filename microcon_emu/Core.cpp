@@ -280,9 +280,6 @@ void Core_start(Thread_data* mydata) {
 		efree(test3);
 	}
 
-	
-	logalloc_dump_pool();
-	exit(0);
 
 	/* TC9: test block coalescing of consecutive freed blocks */
 	eprintf("TC9: test block coalescing - fill pool near capacity\n");
@@ -451,7 +448,6 @@ void Core_start(Thread_data* mydata) {
 	eprintf("TC9: cleanup complete\n");
 
 	logalloc_dump_pool();
-
 	exit(0);
 
 
