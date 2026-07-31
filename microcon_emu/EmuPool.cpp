@@ -187,7 +187,7 @@ void* logalloc_allocate_clear_memory(uint32 size)
 void logalloc_free_memory(void* ptr)
 {
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
-    uint32 nextindex = 0;
+    uint32 real_nextindex = 0;
     uint32 magic_num = RELADR_MAGIC_NUMBER(baseindex);
     m_assert(magic_num == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     
@@ -197,9 +197,13 @@ void logalloc_free_memory(void* ptr)
 
     uint32 prevblock_startidx = RELADR_PREV_IDX(baseindex);
     uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
+    uint32 nextblock_startoffset = RELADR_NEXT_OFFSET(baseindex);
+    uint32 prevblock_startoffset = RELADR_PREV_OFFSET(baseindex);
 
     uint32 nextblock_prev = RELADR_PREV_IDX(nextblock_startidx);
     uint32 prevblock_magic = RELADR_MAGIC_NUMBER(prevblock_startidx);
+    uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
+    uint32 prevblock_next = RELADR_NEXT_IDX(prevblock_startidx);
 
     /* nextindex for calculating and subtracting current block size
      * there can be a gap between current and next allocated */
@@ -213,41 +217,23 @@ void logalloc_free_memory(void* ptr)
         real_nextindex = nextblock_startidx;
     }
 
-    /* coalesce if previous block is a freed block */
+    /* 1 step coalesce when previous block is also a freed block
+     * (necessary to maintain links for all allocated blocks) */
     if (prevblock_magic == MAGIC_NUMBER_FREE)
     {
-        uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
-        uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
-        uint32 prevblock_prev_prev = RELADR_PREV_IDX(prevblock_prev);
-        uint32 prevblock_prev_prevoff = (prevblock_prev >= prevblock_prev_prev) ? (prevblock_prev - prevblock_prev_prev) : (prevblock_prev + pool_size - prevblock_prev_prev);
-        uint32 prevblock_prev_nextoff = (nextblock_startidx >= prevblock_prev) ? (nextblock_startidx - prevblock_prev) : (pool_size - prevblock_prev + nextblock_startidx);
-        RELADR_HEAD_UPDATE(prevblock_prev, prevblock_prev_prevoff, prevblock_prev_nextoff);
-        
-        uint32 nextblock_prevoff = (nextblock_startidx >= prevblock_startidx) ? (nextblock_startidx - prevblock_startidx) : (nextblock_startidx + pool_size - prevblock_startidx);
-        uint32 nextblock_next = RELADR_NEXT_IDX(nextblock_startidx);
-        uint32 nextblock_nextoff = (nextblock_next >= nextblock_startidx) ? (nextblock_next - nextblock_startidx) : (pool_size - nextblock_startidx + nextblock_next);
-        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_prevoff, nextblock_nextoff);
+        RELADR_HEAD_UPDATE(prevblock_prev, RELADR_PREV_OFFSET(prevblock_prev), nextblock_startoffset);
+        RELADR_HEAD_UPDATE(nextblock_prev, prevblock_startoffset, RELADR_NEXT_OFFSET(nextblock_prev)); /* new gap */
         last_pos = prevblock_prev; /* double rewind pos */
     }
     else
     {
-        uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
-        uint32 prevblock_prev = RELADR_PREV_IDX(prevblock_startidx);
-        uint32 prevblock_prevoff = (prevblock_startidx >= prevblock_prev) ? (prevblock_startidx - prevblock_prev) : (prevblock_startidx + pool_size - prevblock_prev);
-        uint32 prevblock_nextoff = (nextblock_startidx >= prevblock_startidx) ? (nextblock_startidx - prevblock_startidx) : (pool_size - prevblock_startidx + nextblock_startidx);
-        RELADR_HEAD_UPDATE(prevblock_startidx, prevblock_prevoff, prevblock_nextoff);
-        
-        uint32 nextblock_prevoff = (nextblock_startidx >= baseindex) ? (nextblock_startidx - baseindex) : (nextblock_startidx + pool_size - baseindex);
-        uint32 nextblock_next = RELADR_NEXT_IDX(nextblock_startidx);
-        uint32 nextblock_nextoff = (nextblock_next >= nextblock_startidx) ? (nextblock_next - nextblock_startidx) : (pool_size - nextblock_startidx + nextblock_next);
-        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_prevoff, nextblock_nextoff);
+        RELADR_HEAD_UPDATE(prevblock_next, RELADR_PREV_OFFSET(prevblock_next), nextblock_startoffset);
+        RELADR_HEAD_UPDATE(nextblock_prev, nextblock_prev - baseindex, RELADR_NEXT_OFFSET(nextblock_prev)); /* new gap */
         last_pos = prevblock_startidx; /* rewind pos */
     }
 
     /* destroy */
-    uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
-    uint32 baseindex_prevoff = (baseindex >= prevblock_startidx) ? (baseindex - prevblock_startidx) : (baseindex + pool_size - prevblock_startidx);
-    RELADR_HEAD_UPDATE_FREE(baseindex, baseindex_prevoff); /* mark as freed */
+    RELADR_HEAD_UPDATE_FREE(baseindex, RELADR_PREV_OFFSET(baseindex)); /* mark as freed */
     logalloc_pool_cap -= (real_nextindex - baseindex); /* update capacity */
 }
 #else
@@ -306,7 +292,7 @@ void logalloc_free_memory(void* ptr)
 /* for malloc */
 /* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
 * indexes point to header, not data. */
-#ifdef RELATIVE_INDEXING
+// #ifdef RELATIVE_INDEXING
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
@@ -415,7 +401,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     }
     
 }
-#else
+// #else
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
@@ -523,7 +509,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     }
     
 }
-#endif
+// #endif
 
 void* logalloc_realloc_memory(void* ptr, uint32 size)
 {

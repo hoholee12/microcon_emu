@@ -51,7 +51,7 @@ extern void logalloc_relidxinit();
 #define CONV_ADDR_TO_BODY(addr) ((void*)((logalloc_block_header*)addr + 1))
 #define CONV_IDX_TO_BODY(index) CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(index))
 
-#ifdef RELATIVE_INDEXING
+// #ifdef RELATIVE_INDEXING
 /* make block headers as reliable as possible
  * --- we will use 2 words (8bytes) for best alignment.
  * structure:
@@ -167,7 +167,7 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
     return ((decoded.firstword & 0xFF) | (decoded.secondword & 0xFF));
 }
-#endif
+// #endif
 
 
 
