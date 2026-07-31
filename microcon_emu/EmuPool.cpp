@@ -87,7 +87,6 @@ uint32 last_pos = 0;    /* last position for better performance */
 uint32 last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
 uint32 logalloc_pool_cap = 0;
 
-
 #ifdef RELATIVE_INDEXING
 void logalloc_init()
 {
@@ -293,8 +292,11 @@ void logalloc_free_memory(void* ptr)
 /* for malloc */
 /* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
 * indexes point to header, not data. */
+
+/* TODO: allocation with alignment
+ * need a poke-hole type of logic in the allocation */
 #ifdef RELATIVE_INDEXING
-void* logalloc_allocate_memory(uint32 bytecount)
+void* logalloc_allocate_memory(uint32 bytecount, uint32 alignment)
 {
     uint32 curr_index = 0; /* must always point to header magic */
     uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
@@ -393,7 +395,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     
 }
 #else
-void* logalloc_allocate_memory(uint32 bytecount)
+void* logalloc_allocate_memory(uint32 bytecount, uint32 alignment)
 {
     uint32 curr_index = 0; /* must always point to header magic */
     uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
@@ -539,3 +541,5 @@ void logalloc_dump_pool()
 
     printf("logalloc pool dumped to logalloc_dump.bin\n");
 }
+
+

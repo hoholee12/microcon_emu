@@ -447,8 +447,8 @@ void Core_start(Thread_data* mydata) {
 	}
 	eprintf("TC9: cleanup complete\n");
 
-	logalloc_dump_pool();
-	exit(0);
+	// logalloc_dump_pool();
+	// exit(0);
 
 
 	Clock_init();
