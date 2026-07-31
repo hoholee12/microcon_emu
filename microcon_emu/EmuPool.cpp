@@ -292,7 +292,7 @@ void logalloc_free_memory(void* ptr)
 /* for malloc */
 /* first 3(0;magic,1;previdx,2;nextidx) is header, 4+ is data.
 * indexes point to header, not data. */
-// #ifdef RELATIVE_INDEXING
+#ifdef RELATIVE_INDEXING
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
@@ -334,43 +334,33 @@ void* logalloc_allocate_memory(uint32 bytecount)
              * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
             uint32 gap_index = RELADR_PREV_IDX(curr_index_next);
             uint32 gapsize = curr_index_next - gap_index;
+            uint32 currsize = gap_index - curr_index;
             if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */
-                uint32 pool_size = MAX_POOL_SIZE / sizeof(uint32);
-                uint32 curr_prevoff = (curr_index >= curr_index_prev) ? (curr_index - curr_index_prev) : (curr_index + pool_size - curr_index_prev);
-                uint32 curr_nextoff = (gap_index >= curr_index) ? (gap_index - curr_index) : (pool_size - curr_index + gap_index);
-                RELADR_HEAD_UPDATE(curr_index, curr_prevoff, curr_nextoff); /* update current block's next to point to new block */
+                RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), currsize); /* update current block's next to point to new block */
                 last_pos = gap_index;
                 logalloc_pool_cap += blocksize;
                 /* new block */
-                uint32 curr_index_next_copy = curr_index_next;
-                uint32 gap_prevoff = (gap_index >= curr_index) ? (gap_index - curr_index) : (gap_index + pool_size - curr_index);
-                uint32 gap_nextoff = (curr_index_next_copy >= gap_index) ? (curr_index_next_copy - gap_index) : (pool_size - gap_index + curr_index_next_copy);
-                RELADR_HEAD_UPDATE(gap_index, gap_prevoff, gap_nextoff); /* new block header */
+                RELADR_HEAD_UPDATE(gap_index, currsize, gapsize); /* new block's prev points to current block, next points to next block */
+
                 if (gapsize == blocksize)
                 {
                     /* perfect fit, we can just update the next block's prev to point to new block */
-                    uint32 next_prevoff = (curr_index_next_copy >= gap_index) ? (curr_index_next_copy - gap_index) : (curr_index_next_copy + pool_size - gap_index);
-                    uint32 next_next = RELADR_NEXT_IDX(curr_index_next_copy);
-                    uint32 next_nextoff = (next_next >= curr_index_next_copy) ? (next_next - curr_index_next_copy) : (pool_size - curr_index_next_copy + next_next);
-                    RELADR_HEAD_UPDATE(curr_index_next_copy, next_prevoff, next_nextoff);
+                    RELADR_HEAD_UPDATE(curr_index_next, gapsize, RELADR_NEXT_OFFSET(curr_index_next));
                 }
                 else
                 {
                     /* we can fit more, we need to update the next block's prev to point to new block's next
                      * - we plant gap logic for future allocs here */
                     uint32 post_gap_index = gap_index + blocksize;
-                    uint32 next_prevoff = (curr_index_next_copy >= post_gap_index) ? (curr_index_next_copy - post_gap_index) : (curr_index_next_copy + pool_size - post_gap_index);
-                    uint32 next_next = RELADR_NEXT_IDX(curr_index_next_copy);
-                    uint32 next_nextoff = (next_next >= curr_index_next_copy) ? (next_next - curr_index_next_copy) : (pool_size - curr_index_next_copy + next_next);
-                    RELADR_HEAD_UPDATE(curr_index_next_copy, next_prevoff, next_nextoff);
+                    uint32 post_gapsize = gapsize - blocksize;
+                    RELADR_HEAD_UPDATE(curr_index_next, post_gapsize, RELADR_NEXT_OFFSET(curr_index_next));
 
                     /* if we were to deallocate, make it a lone island, 
                      * and then try reallocating the left side with a smaller block; */
                     /* we need to plant free magic here */
-                    uint32 post_gap_prevoff = (post_gap_index >= gap_index) ? (post_gap_index - gap_index) : (post_gap_index + pool_size - gap_index);
-                    RELADR_HEAD_UPDATE_FREE(post_gap_index, post_gap_prevoff);
+                    RELADR_HEAD_UPDATE_FREE(post_gap_index, blocksize); /* new gap block */
                 }
 
                 return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(gap_index)); /* return data area */
@@ -401,7 +391,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     }
     
 }
-// #else
+#else
 void* logalloc_allocate_memory(uint32 bytecount)
 {
     uint32 curr_index = 0; /* must always point to header magic */
@@ -509,7 +499,7 @@ void* logalloc_allocate_memory(uint32 bytecount)
     }
     
 }
-// #endif
+#endif
 
 void* logalloc_realloc_memory(void* ptr, uint32 size)
 {
