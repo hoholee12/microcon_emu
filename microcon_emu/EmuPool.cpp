@@ -199,6 +199,7 @@ void logalloc_free_memory(void* ptr)
     uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
     uint32 nextblock_startoffset = RELADR_NEXT_OFFSET(baseindex);
     uint32 prevblock_startoffset = RELADR_PREV_OFFSET(baseindex);
+    uint32 prevblock_prev_startoffset = RELADR_PREV_OFFSET(prevblock_startidx);
 
     uint32 nextblock_prev = RELADR_PREV_IDX(nextblock_startidx);
     uint32 prevblock_magic = RELADR_MAGIC_NUMBER(prevblock_startidx);
@@ -221,14 +222,14 @@ void logalloc_free_memory(void* ptr)
      * (necessary to maintain links for all allocated blocks) */
     if (prevblock_magic == MAGIC_NUMBER_FREE)
     {
-        RELADR_HEAD_UPDATE(prevblock_prev, RELADR_PREV_OFFSET(prevblock_prev), nextblock_startoffset);
-        RELADR_HEAD_UPDATE(nextblock_prev, prevblock_startoffset, RELADR_NEXT_OFFSET(nextblock_prev)); /* new gap */
+        RELADR_HEAD_UPDATE(prevblock_prev, RELADR_PREV_OFFSET(prevblock_prev), nextblock_startoffset + prevblock_startoffset + prevblock_prev_startoffset);
+        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startoffset + prevblock_startoffset, RELADR_NEXT_OFFSET(nextblock_startidx)); /* new gap */
         last_pos = prevblock_prev; /* double rewind pos */
     }
     else
     {
-        RELADR_HEAD_UPDATE(prevblock_next, RELADR_PREV_OFFSET(prevblock_next), nextblock_startoffset);
-        RELADR_HEAD_UPDATE(nextblock_prev, nextblock_prev - baseindex, RELADR_NEXT_OFFSET(nextblock_prev)); /* new gap */
+        RELADR_HEAD_UPDATE(prevblock_startidx, RELADR_PREV_OFFSET(prevblock_startidx), nextblock_startoffset + prevblock_startoffset);
+        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startoffset, RELADR_NEXT_OFFSET(nextblock_startidx)); /* new gap */
         last_pos = prevblock_startidx; /* rewind pos */
     }
 
