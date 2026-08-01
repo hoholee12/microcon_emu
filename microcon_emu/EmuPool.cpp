@@ -310,11 +310,14 @@ void logalloc_free_memory(void* ptr)
  * 2-2-3. if gap is big enough, allocate(poke-hole logic) and return
  * 2-2-4. if gap is too small, go back to 1
  * 
+ * note: aligned index should consider the header size, so we need to add the header size to the current index before aligning it to the next aligned index.
+ * (and then subtract the header size again for header allocation)
+ * 
  * aligned_index = (current_index + (align_bytes / sizeof(uint32) - 1)) & ~(align_bytes / sizeof(uint32) - 1)
- * ex) current_index = 0x1234, align_bytes = 16 (already aligned)
- * aligned_index = (0x1234 + (16 / 4 - 1)) & ~(16 / 4 - 1) = (0x1234 + 3) & ~3 = 0x1237 & ~3 = 0x1234 (same)
- * ex) current_index = 0x1235, align_bytes = 16 (unaligned)
- * aligned_index = (0x1235 + 3) & ~3 = 0x1238 & ~3 = 0x1238 (snaps to next aligned index)
+ * ex) current_index = 0x1234 (index after header = 0x1236), align_bytes = 16
+ * aligned_index = (0x1236 + (16 / 4 - 1)) & ~(16 / 4 - 1) = (0x1236 + 3) & ~3 = 0x1239 & ~3 = 0x1238 (snap to next aligned index)
+ * ex) current_index = 0x1232 (index after header = 0x1234), align_bytes = 16
+ * aligned_index = (0x1234 + 3) & ~3 = 0x1237 & ~3 = 0x1234 (already aligned)
  * 
  */
 #ifdef RELATIVE_INDEXING
@@ -337,6 +340,9 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         last_pos = 0;
         last_pos_perf_penalty++;
     }
+
+    /* align index */
+
 
     /* we have at least one block here */
     while(1)
