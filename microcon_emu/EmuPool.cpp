@@ -294,9 +294,31 @@ void logalloc_free_memory(void* ptr)
 * indexes point to header, not data. */
 
 /* TODO: allocation with alignment
- * need a poke-hole type of logic in the allocation */
+ * need a poke-hole type of logic in the allocation
+ *
+ * poke-hole:
+ * 1. iter search
+ * 2. check current index alignment
+ * 
+ * 2-1. if current index already aligned
+ * 2-1-1. gap is small, go back to 1
+ * 2-1-2. gap is big enough, allocate and return
+ * 
+ * 2-2. if current index is unaligned
+ * 2-2-1. align current index to next aligned index
+ * 2-2-2. check if gap is big enough to allocate
+ * 2-2-3. if gap is big enough, allocate(poke-hole logic) and return
+ * 2-2-4. if gap is too small, go back to 1
+ * 
+ * aligned_index = (current_index + (align_bytes / sizeof(uint32) - 1)) & ~(align_bytes / sizeof(uint32) - 1)
+ * ex) current_index = 0x1234, align_bytes = 16 (already aligned)
+ * aligned_index = (0x1234 + (16 / 4 - 1)) & ~(16 / 4 - 1) = (0x1234 + 3) & ~3 = 0x1237 & ~3 = 0x1234 (same)
+ * ex) current_index = 0x1235, align_bytes = 16 (unaligned)
+ * aligned_index = (0x1235 + 3) & ~3 = 0x1238 & ~3 = 0x1238 (snaps to next aligned index)
+ * 
+ */
 #ifdef RELATIVE_INDEXING
-void* logalloc_allocate_memory(uint32 bytecount, uint32 alignment)
+void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
 {
     uint32 curr_index = 0; /* must always point to header magic */
     uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
@@ -395,7 +417,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 alignment)
     
 }
 #else
-void* logalloc_allocate_memory(uint32 bytecount, uint32 alignment)
+void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
 {
     uint32 curr_index = 0; /* must always point to header magic */
     uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
