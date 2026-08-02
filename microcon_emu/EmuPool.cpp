@@ -401,20 +401,21 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
                     pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
-                    /* redo the gap index and gapsize */
+                    /* search the whole gap for possible aligned allocation
+                     * redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
-                    if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
-                        && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the original free block */
+                    gapsize = 0; /* set gapsize to 0 in case gap index search fails so that main logic will not run */
+                    while (gap_index < curr_index_next)
                     {
-                        gapsize = curr_index_next - gap_index;
+                        if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
+                            && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the old gap index free block */
+                        {
+                            gapsize = curr_index_next - gap_index;
+                            pre_gap_poking_required = 1;
+                            break;
+                        }
+                        gap_index += align_words; /* try next aligned index */
                     }
-                    else
-                    {
-                        /* gap is too small, but we cant break off here.
-                         * set it 0 and let the main logic handle it */
-                        gapsize = 0;
-                    }
-                    pre_gap_poking_required = 1;
                 }
             }
 
@@ -553,20 +554,21 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
                     pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
-                    /* redo the gap index and gapsize */
+                    /* search the whole gap for possible aligned allocation
+                     * redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
-                    if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
-                        && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the original free block */
+                    gapsize = 0; /* set gapsize to 0 in case gap index search fails so that main logic will not run */
+                    while (gap_index < curr_index_next)
                     {
-                        gapsize = curr_index_next - gap_index;
+                        if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
+                            && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the old gap index free block */
+                        {
+                            gapsize = curr_index_next - gap_index;
+                            pre_gap_poking_required = 1;
+                            break;
+                        }
+                        gap_index += align_words; /* try next aligned index */
                     }
-                    else
-                    {
-                        /* gap is too small, but we cant break off here.
-                         * set it 0 and let the main logic handle it */
-                        gapsize = 0;
-                    }
-                    pre_gap_poking_required = 1;
                 }
             }
 
