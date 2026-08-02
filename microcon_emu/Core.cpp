@@ -202,6 +202,8 @@ void Core_start(Thread_data* mydata) {
 	for(int i = -3; i < 10; i++){
 		eprintf("%d\n", hello[i]);
 	}
+	logalloc_dump_pool();
+	exit(0);
 	efree(hello);
 
 	hello = emalloc(10 * sizeof(uint32));
@@ -448,7 +450,7 @@ void Core_start(Thread_data* mydata) {
 	eprintf("TC9: cleanup complete\n");
 
 	logalloc_dump_pool();
-	// exit(0);
+	exit(0);
 
 
 	Clock_init();

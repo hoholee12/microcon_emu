@@ -6,7 +6,7 @@
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
@@ -176,10 +176,11 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
 
 
 #if defined(USE_EMUPOOL)
-/* TODO: align_bytes set to 0 for now */
-#define emalloc(size) (uint32*)logalloc_allocate_memory(size, 0)
-#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size, 0)
-#define erealloc(ptr, size) (uint32*)logalloc_realloc_memory(ptr, size)
+#define BASE_ALLOC 4
+/* TODO: align_bytes set to BASE_ALLOC for now */
+#define emalloc(size) (uint32*)logalloc_allocate_memory(size, BASE_ALLOC)
+#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size, BASE_ALLOC)
+#define erealloc(ptr, size) (uint32*)logalloc_realloc_memory(ptr, size, BASE_ALLOC)
 #define efree(ptr) logalloc_free_memory(ptr)
 #else
 #define emalloc(size) (uint32*)malloc(size)

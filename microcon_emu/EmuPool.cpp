@@ -396,7 +396,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 uint32 align_words = align_bytes / sizeof(uint32);
                 uint32 gap_data_index = gap_index + header_words;
                 uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
-                if (curr_index < (aligned_data_index - header_words))
+                if (gap_index < (aligned_data_index - header_words))
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
@@ -552,7 +552,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 uint32 align_words = align_bytes / sizeof(uint32);
                 uint32 gap_data_index = gap_index + header_words;
                 uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
-                if (curr_index < (aligned_data_index - header_words))
+                if (gap_index < (aligned_data_index - header_words))
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
