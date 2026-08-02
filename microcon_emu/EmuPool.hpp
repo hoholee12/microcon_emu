@@ -176,8 +176,9 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
 
 
 #if defined(USE_EMUPOOL)
-#define emalloc(size) (uint32*)logalloc_allocate_memory(size)
-#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size)
+/* TODO: align_bytes set to 0 for now */
+#define emalloc(size) (uint32*)logalloc_allocate_memory(size, 0)
+#define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size, 0)
 #define erealloc(ptr, size) (uint32*)logalloc_realloc_memory(ptr, size)
 #define efree(ptr) logalloc_free_memory(ptr)
 #else
