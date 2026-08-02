@@ -6,7 +6,7 @@
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
+#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
@@ -32,9 +32,9 @@ typedef struct {
 
 /* one bit per 1KB block */
 extern uint32 logalloc_pool[];
-extern void* logalloc_allocate_clear_memory(uint32 size);
-extern void* logalloc_allocate_memory(uint32 size);
-extern void* logalloc_realloc_memory(void* ptr, uint32 size);
+extern void* logalloc_allocate_clear_memory(uint32 size, uint32 align_bytes);
+extern void* logalloc_allocate_memory(uint32 size, uint32 align_bytes);
+extern void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes);
 extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();
 extern void logalloc_reposition_last_pos(void* ptr);

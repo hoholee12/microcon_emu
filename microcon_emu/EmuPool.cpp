@@ -336,6 +336,14 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
     uint32 curr_index = 0; /* must always point to header magic */
     uint32 blocksize = ((uint32)bytecount + sizeof(logalloc_block_header)) / sizeof(uint32); /* blocksize must be in word units */
     uint32 curr_index_prev, curr_index_next;
+    uint32 currsize = 0;
+    uint32 gap_index = 0;
+    uint32 gapsize = 0;
+    /* only used on pre_gap_poking */
+    uint32 pre_gap_index = 0;
+    uint32 pre_gapsize = 0;
+    uint32 middle_alloc_index = 0;
+    uint32 pre_gap_poking_required = 0;
 
     /* sanity check */
     m_assert(logalloc_pool_cap + blocksize < (MAX_POOL_SIZE / sizeof(uint32)), "logalloc pool out of memory");
@@ -350,9 +358,6 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         last_pos = 0;
         last_pos_perf_penalty++;
     }
-
-    /* align index */
-
 
     /* we have at least one block here */
     while(1)
@@ -373,12 +378,57 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
             /* gap detection: mfree removes block by simply doing prev_block->next = curr_block->next,
              * effectively skipping the freed block. 
              * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
-            uint32 gap_index = RELADR_PREV_IDX(curr_index_next);
-            uint32 gapsize = curr_index_next - gap_index;
-            uint32 currsize = gap_index - curr_index;
+            gap_index = RELADR_PREV_IDX(curr_index_next);
+            gapsize = curr_index_next - gap_index;
+            currsize = gap_index - curr_index;
+            /* only used on pre_gap_poking */
+            pre_gap_index = 0;
+            pre_gapsize = 0;
+            middle_alloc_index = 0;
+            pre_gap_poking_required = 0;
+
+            /* shit is too fucking complicated
+             * pre-gap-poking only when really required
+             * hide the pre-gap from the main logic */
+            if (align_bytes > 0)
+            {
+                uint32 header_words = sizeof(logalloc_block_header) / sizeof(uint32);
+                uint32 align_words = align_bytes / sizeof(uint32);
+                uint32 gap_data_index = gap_index + header_words;
+                uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
+                if (curr_index < (aligned_data_index - header_words))
+                {
+                    middle_alloc_index = (aligned_data_index - header_words);
+                    pre_gap_index = gap_index;
+                    pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
+                    /* redo the gap index and gapsize */
+                    gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
+                    if (curr_index_next > gap_index)
+                    {
+                        gapsize = curr_index_next - gap_index;
+                    }
+                    else
+                    {
+                        /* gap is too small, but we cant break off here.
+                         * set it 0 and let the main logic handle it */
+                        gapsize = 0;
+                    }
+                    pre_gap_poking_required = 1;
+                }
+            }
+
             if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */
+
+                if (pre_gap_poking_required != 0)
+                {
+                    /* we need to poke it(new free block in otherwise nonexistant area) */
+                    RELADR_HEAD_UPDATE_FREE(pre_gap_index, currsize);
+                    /* curr_index to point to pre_gap_index just for this iteration */
+                    curr_index = pre_gap_index;
+                }
+
                 RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), currsize); /* update current block's next to point to new block */
                 last_pos = gap_index;
                 logalloc_pool_cap += blocksize;
