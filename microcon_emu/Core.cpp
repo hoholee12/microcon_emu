@@ -203,8 +203,6 @@ void Core_start(Thread_data* mydata) {
 		eprintf("%d\n", hello[i]);
 	}
 	efree(hello);
-	logalloc_dump_pool();
-	exit(0);
 
 	hello = emalloc(10 * sizeof(uint32));
 	for (int i = -3; i < 10; i++) {
@@ -222,8 +220,11 @@ void Core_start(Thread_data* mydata) {
 	/* TC1: allocate and free a 999KB block 1000 times */
 	for (int i = 0; i < 1000; i++) {
 		uint32* test = emalloc(999 * 1024);
+		logalloc_dump_pool();
+		exit(0);
 		efree(test);
 	}
+
 
 	/* TC2: allocate a 9KB block 1000 times */
 	for (int i = 0; i < 1000; i++) {
