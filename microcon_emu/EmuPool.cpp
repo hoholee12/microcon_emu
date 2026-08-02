@@ -313,7 +313,6 @@ void logalloc_free_memory(void* ptr)
  * note: aligned index should consider the header size, so we need to add the header size to the current index before aligning it to the next aligned index.
  * (and then subtract the header size again for header allocation)
  * 
- * *assuming header is 2 words (relative indexing)
  * aligned_index = (current_index + (align_bytes / sizeof(uint32) - 1)) & ~(align_bytes / sizeof(uint32) - 1)
  * ex) current_index = 0x1234 (index after header = 0x1236), align_bytes = 16
  * aligned_index = (0x1236 + (16 / 4 - 1)) & ~(16 / 4 - 1) = (0x1236 + 3) & ~3 = 0x1239 & ~3 = 0x1238 (snap to next aligned index)
@@ -342,6 +341,9 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         last_pos_perf_penalty++;
     }
 
+    /* align index */
+
+
     /* we have at least one block here */
     while(1)
     {
@@ -364,62 +366,35 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
             uint32 gap_index = RELADR_PREV_IDX(curr_index_next);
             uint32 gapsize = curr_index_next - gap_index;
             uint32 currsize = gap_index - curr_index;
-            
-            /* calculate the actual allocation index (aligned or not) */
-            uint32 alloc_index = gap_index;
-            if (align_bytes > 0)
-            {
-                /* calculate aligned position within this gap */
-                uint32 header_words = sizeof(logalloc_block_header) / sizeof(uint32);
-                uint32 align_words = align_bytes / sizeof(uint32);
-                uint32 gap_data_index = gap_index + header_words;
-                uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
-                alloc_index = aligned_data_index - header_words;
-            }
-            
-            /* check if allocation (aligned or not) fits in this gap */
-            if (alloc_index >= gap_index && alloc_index + blocksize <= curr_index_next)
+            if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */
-                uint32 pre_gap_size = alloc_index - gap_index;
-                uint32 post_gap_size = curr_index_next - (alloc_index + blocksize);
-                
-                /* update current block to point to allocation or pre-gap */
-                if (pre_gap_size > 0)
-                {
-                    /* there's space before the aligned block, create a free block */
-                    RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), currsize);
-                    RELADR_HEAD_UPDATE_FREE(gap_index, currsize); /* pre-gap free block */
-                }
-                else
-                {
-                    /* no pre-gap, current block points directly to allocation */
-                    RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), alloc_index - curr_index);
-                }
-                
-                last_pos = alloc_index;
+                RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), currsize); /* update current block's next to point to new block */
+                last_pos = gap_index;
                 logalloc_pool_cap += blocksize;
-                
-                /* create the new allocated block */
-                uint32 alloc_prevoffset = (pre_gap_size > 0) ? pre_gap_size : (alloc_index - curr_index);
-                uint32 alloc_nextoffset = (post_gap_size > 0) ? blocksize : (curr_index_next - alloc_index);
-                RELADR_HEAD_UPDATE(alloc_index, alloc_prevoffset, alloc_nextoffset);
-                
-                /* handle post-gap if exists */
-                if (post_gap_size > 0)
+                /* new block */
+                RELADR_HEAD_UPDATE(gap_index, currsize, gapsize); /* new block's prev points to current block, next points to next block */
+
+                if (gapsize == blocksize)
                 {
-                    /* create a free block after the allocation */
-                    uint32 post_gap_index = alloc_index + blocksize;
-                    RELADR_HEAD_UPDATE_FREE(post_gap_index, blocksize);
-                    RELADR_HEAD_UPDATE(curr_index_next, post_gap_size, RELADR_NEXT_OFFSET(curr_index_next));
+                    /* perfect fit, we can just update the next block's prev to point to new block */
+                    RELADR_HEAD_UPDATE(curr_index_next, gapsize, RELADR_NEXT_OFFSET(curr_index_next));
                 }
                 else
                 {
-                    /* perfect fit, update next block's prev */
-                    RELADR_HEAD_UPDATE(curr_index_next, alloc_nextoffset, RELADR_NEXT_OFFSET(curr_index_next));
+                    /* we can fit more, we need to update the next block's prev to point to new block's next
+                     * - we plant gap logic for future allocs here */
+                    uint32 post_gap_index = gap_index + blocksize;
+                    uint32 post_gapsize = gapsize - blocksize;
+                    RELADR_HEAD_UPDATE(curr_index_next, post_gapsize, RELADR_NEXT_OFFSET(curr_index_next));
+
+                    /* if we were to deallocate, make it a lone island, 
+                     * and then try reallocating the left side with a smaller block; */
+                    /* we need to plant free magic here */
+                    RELADR_HEAD_UPDATE_FREE(post_gap_index, blocksize); /* new gap block */
                 }
 
-                return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(alloc_index)); /* return data area */
+                return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(gap_index)); /* return data area */
             }
             else
             {
@@ -494,66 +469,37 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
              * next_block is untouched, so we can check the next_block->prev != prev_block to detect the gap. */
             uint32 gap_index = curr_header_next->prev;
             uint32 gapsize = curr_index_next - gap_index;
-            
-            /* calculate the actual allocation index (aligned or not) */
-            uint32 alloc_index = gap_index;
-            if (align_bytes > 0)
-            {
-                /* calculate aligned position within this gap */
-                uint32 header_words = sizeof(logalloc_block_header) / sizeof(uint32);
-                uint32 align_words = align_bytes / sizeof(uint32);
-                uint32 gap_data_index = gap_index + header_words;
-                uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
-                alloc_index = aligned_data_index - header_words;
-            }
-            
-            /* check if allocation (aligned or not) fits in this gap */
-            if (alloc_index >= gap_index && alloc_index + blocksize <= curr_index_next)
+            if (gapsize >= blocksize)
             {
                 /* we have enough space to insert a new block here */
-                uint32 pre_gap_size = alloc_index - gap_index;
-                uint32 post_gap_size = curr_index_next - (alloc_index + blocksize);
-                
-                /* update current block to point to allocation or pre-gap */
-                if (pre_gap_size > 0)
+                curr_header->next = gap_index; /* update current block's next to point to new block */
+                last_pos = gap_index;
+                logalloc_pool_cap += blocksize;
+                /* new block */
+                gap_header = CONV_IDX_TO_ADDR(gap_index);
+                gap_header->magic = MAGIC_NUMBER;
+                gap_header->prev = curr_index; /* prev points to current block */
+                /* in case we allocate smaller than gap, we still need gap logic for future alloc here */
+                gap_header->next = curr_index_next; /* next points to next block */
+                if (gapsize == blocksize)
                 {
-                    /* there's space before the aligned block, create a free block */
-                    curr_header->next = gap_index;
-                    logalloc_block_header* pre_gap_header = CONV_IDX_TO_ADDR(gap_index);
-                    pre_gap_header->magic = MAGIC_NUMBER_FREE;
-                    pre_gap_header->prev = curr_index;
-                    pre_gap_header->next = 0; /* free blocks dont have a defined next index */
+                    /* perfect fit, we can just update the next block's prev to point to new block */
+                    curr_header_next->prev = gap_index;
                 }
                 else
                 {
-                    /* no pre-gap, current block points directly to allocation */
-                    curr_header->next = alloc_index;
-                }
-                
-                last_pos = alloc_index;
-                logalloc_pool_cap += blocksize;
-                
-                /* create the new allocated block */
-                gap_header = CONV_IDX_TO_ADDR(alloc_index);
-                gap_header->magic = MAGIC_NUMBER;
-                gap_header->prev = (pre_gap_size > 0) ? gap_index : curr_index;
-                gap_header->next = curr_index_next;
-                
-                /* handle post-gap if exists */
-                if (post_gap_size > 0)
-                {
-                    /* create a free block after the allocation */
-                    uint32 post_gap_index = alloc_index + blocksize;
+                    /* we can fit more, we need to update the next block's prev to point to new block's next
+                     * - we plant gap logic for future allocs here */
+                    uint32 post_gap_index = gap_index + blocksize;
                     curr_header_next->prev = post_gap_index;
+
+                    /* if we were to deallocate, make it a lone island, 
+                     * and then try reallocating the left side with a smaller block; */
+                    /* we need to plant free magic here */
                     logalloc_block_header* post_gap_header = CONV_IDX_TO_ADDR(post_gap_index);
                     post_gap_header->magic = MAGIC_NUMBER_FREE;
-                    post_gap_header->prev = alloc_index;
+                    post_gap_header->prev = gap_index;
                     post_gap_header->next = 0; /* free blocks dont have a defined next index */
-                }
-                else
-                {
-                    /* perfect fit, update next block's prev */
-                    curr_header_next->prev = alloc_index;
                 }
 
                 return CONV_ADDR_TO_BODY(gap_header); /* return data area */
