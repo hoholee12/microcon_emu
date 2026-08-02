@@ -403,7 +403,8 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
                     /* redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
-                    if (curr_index_next > gap_index)
+                    if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
+                        && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the original free block */
                     {
                         gapsize = curr_index_next - gap_index;
                     }
@@ -463,12 +464,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         }
         else
         {
-            /* check if we arrived at the end block (wraparound) */
-            if (curr_index_prev != 0x0)
-            {
-                curr_index_next = RELADR_NEXT_IDX(curr_index_next);
-            }
-            else if (curr_index_prev == 0x0)
+            if (curr_index_prev == 0x0)
             {
                 /* this should never happen, means we have a corrupted block with invalid prev/next pointers */
                 m_assert(0, "memory corruption detected in logalloc pool: invalid prev/next pointers");
@@ -559,7 +555,8 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
                     /* redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
-                    if (curr_index_next > gap_index)
+                    if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
+                        && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the original free block */
                     {
                         gapsize = curr_index_next - gap_index;
                     }
@@ -628,12 +625,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         }
         else
         {
-            /* check if we arrived at the end block (wraparound) */
-            if (curr_index_prev != 0x0)
-            {
-                curr_index_next = CONV_IDX_TO_ADDR(curr_index_next)->next;
-            }
-            else if (curr_index_prev == 0x0)
+            if (curr_index_prev == 0x0)
             {
                 /* this should never happen, means we have a corrupted block with invalid prev/next pointers */
                 m_assert(0, "memory corruption detected in logalloc pool: invalid prev/next pointers");

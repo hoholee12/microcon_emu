@@ -202,9 +202,9 @@ void Core_start(Thread_data* mydata) {
 	for(int i = -3; i < 10; i++){
 		eprintf("%d\n", hello[i]);
 	}
+	efree(hello);
 	logalloc_dump_pool();
 	exit(0);
-	efree(hello);
 
 	hello = emalloc(10 * sizeof(uint32));
 	for (int i = -3; i < 10; i++) {

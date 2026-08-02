@@ -176,7 +176,7 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
 
 
 #if defined(USE_EMUPOOL)
-#define BASE_ALLOC 4
+#define BASE_ALLOC 16
 /* TODO: align_bytes set to BASE_ALLOC for now */
 #define emalloc(size) (uint32*)logalloc_allocate_memory(size, BASE_ALLOC)
 #define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size, BASE_ALLOC)
