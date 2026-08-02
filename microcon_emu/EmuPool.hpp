@@ -6,7 +6,7 @@
 #define MAX_POOL_SIZE 0x100000	/* 0x100000 1MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #ifdef RELATIVE_INDEXING
 typedef struct {
