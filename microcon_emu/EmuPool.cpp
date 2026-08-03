@@ -400,7 +400,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
-                    pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
+                    pre_gapsize = middle_alloc_index - gap_index;
                     /* search the whole gap for possible aligned allocation
                      * redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
@@ -410,7 +410,9 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                         if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
                             && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the old gap index free block */
                         {
+                            pre_gapsize = gap_index - pre_gap_index;
                             gapsize = curr_index_next - gap_index;
+                            currsize = gap_index - curr_index;
                             pre_gap_poking_required = 1;
                             break;
                         }
@@ -426,16 +428,14 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 if (pre_gap_poking_required != 0)
                 {
                     /* we need to poke it(new free block in otherwise nonexistant area) */
-                    RELADR_HEAD_UPDATE_FREE(pre_gap_index, currsize);
-                    /* curr_index to point to pre_gap_index just for this iteration */
-                    curr_index = pre_gap_index;
+                    RELADR_HEAD_UPDATE_FREE(pre_gap_index, pre_gap_index - curr_index);
                 }
 
                 RELADR_HEAD_UPDATE(curr_index, RELADR_PREV_OFFSET(curr_index), currsize); /* update current block's next to point to new block */
                 last_pos = gap_index;
                 logalloc_pool_cap += blocksize;
-                /* new block */
-                RELADR_HEAD_UPDATE(gap_index, currsize, gapsize); /* new block's prev points to current block, next points to next block */
+                /* new block - point prev to pre_gap_index if its align issued */
+                RELADR_HEAD_UPDATE(gap_index, (pre_gap_poking_required != 0) ? pre_gapsize : currsize, gapsize);
 
                 if (gapsize == blocksize)
                 {
@@ -553,7 +553,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
                     pre_gap_index = gap_index;
-                    pre_gapsize = middle_alloc_index - gap_index; /* we dont really need it but here for consistency */
+                    pre_gapsize = middle_alloc_index - gap_index;
                     /* search the whole gap for possible aligned allocation
                      * redo the gap index and gapsize */
                     gap_index = middle_alloc_index; /* main logic will make the gap index the new alloc index */
@@ -563,6 +563,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                         if ((curr_index_next > gap_index) /* gap after pre-gap subtracted is still enough for allocation */
                             && (gap_index >= pre_gap_index + header_words)) /* new gap index is not overlapping the old gap index free block */
                         {
+                            pre_gapsize = gap_index - pre_gap_index;
                             gapsize = curr_index_next - gap_index;
                             pre_gap_poking_required = 1;
                             break;
@@ -584,7 +585,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     pre_gap_header->magic = MAGIC_NUMBER_FREE;
                     pre_gap_header->prev = curr_index;
                     pre_gap_header->next = 0; /* free blocks dont have a defined next index */
-                    /* curr_index to point to pre_gap_index just for this iteration */
+                    /* curr_index to point to pre_gap_index if pre-gap poking is required */
                     curr_index = pre_gap_index;
                 }
 

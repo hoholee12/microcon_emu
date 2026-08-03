@@ -218,6 +218,7 @@ void Core_start(Thread_data* mydata) {
 
 	/* memory allocator aging test */
 	/* TC1: allocate and free a 999KB block 1000 times */
+	logalloc_dump_pool();
 	for (int i = 0; i < 1000; i++) {
 		uint32* test = emalloc(999 * 1024);
 		logalloc_dump_pool();
