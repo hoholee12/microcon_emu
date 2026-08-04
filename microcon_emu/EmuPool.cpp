@@ -149,7 +149,7 @@ void logalloc_init()
     debug_block->debug_last_pos = last_pos;
     debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
     debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
-    debug_block->debug_logalloc_totalsize = sizeof(logalloc_pool);
+    debug_block->debug_logalloc_totalsize = MAX_POOL_SIZE / sizeof(uint32);
     debug_block_init = 1;
 #endif
 }
@@ -192,7 +192,7 @@ void logalloc_init()
     debug_block->debug_last_pos = last_pos;
     debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
     debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
-    debug_block->debug_logalloc_totalsize = sizeof(logalloc_pool);
+    debug_block->debug_logalloc_totalsize = MAX_POOL_SIZE / sizeof(uint32);
     debug_block_init = 1;
 #endif
 }
@@ -502,6 +502,16 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     RELADR_HEAD_UPDATE_FREE(post_gap_index, blocksize); /* new gap block */
                 }
 
+#ifdef USE_DEBUG_BLOCK
+                /* update debug block */
+                if (debug_block_init == 1)
+                {
+                    debug_block->debug_last_pos = last_pos;
+                    debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+                    debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+                }
+#endif
+
                 return CONV_ADDR_TO_BODY(CONV_IDX_TO_ADDR(gap_index)); /* return data area */
             }
             else
@@ -673,6 +683,16 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                     post_gap_header->prev = gap_index;
                     post_gap_header->next = 0; /* free blocks dont have a defined next index */
                 }
+
+#ifdef USE_DEBUG_BLOCK
+            /* update debug block */
+            if (debug_block_init == 1)
+            {
+                debug_block->debug_last_pos = last_pos;
+                debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+                debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+            }
+#endif
 
                 return CONV_ADDR_TO_BODY(gap_header); /* return data area */
             }

@@ -24,10 +24,10 @@ class PoolValidator:
         self.debug_block = None  # Will store debug block data if found
     
     @staticmethod
-    def format_size(size_bytes):
+    def format_size(size_words):
         """Convert bytes to human-readable format"""
         units = ['B', 'KB', 'MB', 'GB', 'TB']
-        size = float(size_bytes)
+        size = float(size_words * 4)  # Convert words to bytes
         unit_idx = 0
         while size >= 1024 and unit_idx < len(units) - 1:
             size /= 1024.0
