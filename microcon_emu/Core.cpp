@@ -192,6 +192,8 @@ void Core_start(Thread_data* mydata) {
 
 	logalloc_init();
 
+	logalloc_dump_pool();
+	exit(0);
 
 // #ifdef RELATIVE_INDEXING
 // 	efree((uint32*)(logalloc_pool + 0x2));
@@ -381,8 +383,6 @@ void Core_start(Thread_data* mydata) {
 	}
 	eprintf("TC9: freed %d pairs, total freed size: %u bytes (%.2f KB)\n", freed_pairs, total_freed_size, total_freed_size / 1024.0);
 
-	logalloc_dump_pool();
-	exit(0);
 
 	// Try to allocate 10KB blocks into the coalesced gaps
 	eprintf("TC9: attempting to allocate 10KB blocks into coalesced gaps (keep alive to verify different addresses)\n");
