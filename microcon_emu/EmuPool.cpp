@@ -136,7 +136,7 @@ void logalloc_init()
         RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX - blocksize, last_alloc_pos - curr_pos); /* one last middle sentinel and a gap */
         RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
 
-        RELADR_HEAD_UPDATE(last_alloc_pos, last_alloc_pos - curr_gap_pos, blocksize); /* end block for wraparound */
+        RELADR_HEAD_UPDATE(last_alloc_pos, (curr_gap_pos == last_alloc_pos) ? blocksize : (last_alloc_pos - curr_gap_pos), blocksize); /* end block for wraparound */
 
     }
 
