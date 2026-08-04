@@ -212,6 +212,135 @@ class PoolValidator:
         print("[OK] Found {0} headers out of {1} scanned blocks".format(len(self.headers), scanned_blocks))
         return len(self.headers)
     
+    def calculate_capacity(self):
+        """Calculate total size and allocated capacity"""
+        print("\n" + "="*60)
+        print("CAPACITY TRACKING")
+        print("="*60)
+        
+        # Total size from filesize (in words)
+        total_size_words = self.pool_size_words
+        print("Total pool size: 0x{0:X} words ({1})".format(total_size_words, self.format_size(total_size_words)))
+        
+        if not self.headers:
+            print("[ERROR] No headers to calculate capacity")
+            return
+        
+        # Build index map for fast lookup
+        index_map = {h['index']: h for h in self.headers}
+        
+        # Find all allocated blocks
+        allocated_blocks = [h for h in self.headers if h.get('status') == 'ALLOCATED']
+        
+        if not allocated_blocks:
+            print("[ERROR] No allocated blocks found")
+            return
+        
+        # Calculate allocated size by summing all allocated block sizes
+        total_allocated_words = 0
+        
+        print("\nCalculating allocated block sizes:")
+        for alloc in allocated_blocks:
+            alloc_idx = alloc['index']
+            next_idx = alloc['next']
+            
+            # Get the next allocated block
+            if next_idx not in index_map:
+                print("  [WARN] Allocated block 0x{0:06X}: next=0x{1:06X} not found, skipping".format(alloc_idx, next_idx))
+                continue
+            
+            next_block = index_map[next_idx]
+            
+            # Check if there's a gap (free block) between this allocated block and the next
+            # Gap exists if next->prev != current allocated index
+            next_prev_idx = next_block['prev']
+            
+            block_size = 0
+            
+            if next_prev_idx != alloc_idx:
+                # Gap exists - next->prev should point to a free block
+                # Size = next->prev - allocated index (with wraparound handling)
+                if next_prev_idx in index_map:
+                    gap_block = index_map[next_prev_idx]
+                    
+                    # Handle wraparound: if next->prev < alloc_idx, wraparound occurred
+                    if next_prev_idx < alloc_idx:
+                        block_size = (total_size_words - alloc_idx) + next_prev_idx
+                    else:
+                        block_size = next_prev_idx - alloc_idx
+                    
+                    if gap_block.get('status') == 'FREED':
+                        print("  Allocated 0x{0:06X}: size=0x{1:06X} words (gap exists, free at 0x{2:06X})".format(
+                            alloc_idx, block_size, next_prev_idx))
+                    else:
+                        # next->prev doesn't point to free block, something's wrong
+                        print("  [WARN] Allocated 0x{0:06X}: size=0x{1:06X} words (gap exists, but 0x{2:06X} is not FREE)".format(
+                            alloc_idx, block_size, next_prev_idx))
+                else:
+                    # next->prev doesn't exist, use next_idx with wraparound
+                    if next_idx < alloc_idx:
+                        block_size = (total_size_words - alloc_idx) + next_idx
+                    else:
+                        block_size = next_idx - alloc_idx
+                    print("  [WARN] Allocated 0x{0:06X}: size=0x{1:06X} words (using next idx, prev 0x{2:06X} not found)".format(
+                        alloc_idx, block_size, next_prev_idx))
+            else:
+                # No gap - size = next alloc index - current alloc index (with wraparound handling)
+                if next_idx < alloc_idx:
+                    # Wraparound case (e.g., last sentinel pointing to first sentinel)
+                    block_size = (total_size_words - alloc_idx) + next_idx
+                    print("  Allocated 0x{0:06X}: size=0x{1:06X} words (no gap, wraparound)".format(alloc_idx, block_size))
+                else:
+                    block_size = next_idx - alloc_idx
+                    print("  Allocated 0x{0:06X}: size=0x{1:06X} words (no gap)".format(alloc_idx, block_size))
+            
+            total_allocated_words += block_size
+        
+        print("\n" + "-"*60)
+        print("Total allocated capacity: 0x{0:X} words ({1})".format(
+            total_allocated_words, self.format_size(total_allocated_words)))
+        print("Total pool size: 0x{0:X} words ({1})".format(
+            total_size_words, self.format_size(total_size_words)))
+        
+        if total_size_words > 0:
+            usage_percent = (float(total_allocated_words) / float(total_size_words)) * 100.0
+            print("Pool usage: {0:.2f}%".format(usage_percent))
+        
+        # If debug block exists, compare with tracked capacity
+        if self.debug_block:
+            debug_capacity = self.debug_block['pool_capacity']
+            debug_total = self.debug_block['total_size']
+            
+            print("\n--- Debug Block Comparison ---")
+            print("Debug block pool_capacity: 0x{0:X} words ({1})".format(
+                debug_capacity, self.format_size(debug_capacity)))
+            print("Calculated allocated capacity: 0x{0:X} words ({1})".format(
+                total_allocated_words, self.format_size(total_allocated_words)))
+            
+            if debug_capacity != total_allocated_words:
+                error_msg = "CAPACITY MISMATCH: Debug block capacity (0x{0:X}) != calculated capacity (0x{1:X})".format(
+                    debug_capacity, total_allocated_words)
+                self.errors.append(error_msg)
+                print("[ERROR] {0}".format(error_msg))
+                print("[ERROR] The allocator is not tracking allocated capacity properly!")
+            else:
+                print("[OK] Capacity tracking is correct")
+            
+            print("\nDebug block total_size: 0x{0:X} words ({1})".format(
+                debug_total, self.format_size(debug_total)))
+            print("Calculated total size: 0x{0:X} words ({1})".format(
+                total_size_words, self.format_size(total_size_words)))
+            
+            if debug_total != total_size_words:
+                warn_msg = "Total size mismatch: Debug block (0x{0:X}) != file size (0x{1:X})".format(
+                    debug_total, total_size_words)
+                self.warnings.append(warn_msg)
+                print("[WARN] {0}".format(warn_msg))
+            else:
+                print("[OK] Total size matches")
+        
+        print("="*60)
+    
     def validate_links(self):
         """Validate that forward and backward links are consistent"""
         print("\n--- Validating Index Links ---")
@@ -386,23 +515,6 @@ class PoolValidator:
                     self.errors.append(msg)
                     print("  [ERROR] {0}".format(msg))
         
-        # Info about free blocks (not errors - they're just leftover data)
-        print("\n--- Free Block Information (Not Validated) ---")
-        free_blocks = [h for h in self.headers if h.get('status') == 'FREED']
-        if free_blocks:
-            print("  Found {0} FREE blocks (leftover unused data, may be overwritten)".format(len(free_blocks)))
-            for fb in free_blocks[:5]:  # Show first 5
-                print("    FREE at idx=0x{0:06X}, prev=0x{1:06X}".format(fb['index'], fb['prev']))
-            if len(free_blocks) > 5:
-                print("    ... and {0} more FREE blocks".format(len(free_blocks) - 5))
-        else:
-            print("  No FREE blocks found")
-        
-        if len(self.errors) == 0:
-            print("\n[OK] All link validations passed")
-        else:
-            print("\n[ERROR] Found {0} link validation errors".format(len(self.errors)))
-    
     def check_magic_numbers(self):
         """Magic number check (already filtered during parsing)"""
         print("\n--- Magic Number Validation ---")
@@ -453,6 +565,9 @@ class PoolValidator:
             self.parse_full_mode()
         else:
             self.parse_relative_mode()
+        
+        # Calculate and validate capacity tracking
+        self.calculate_capacity()
         
         self.check_magic_numbers()
         self.validate_links()
