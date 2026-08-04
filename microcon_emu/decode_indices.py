@@ -6,9 +6,11 @@ MAGIC_NUMBER_ALLOCATED = 0xAAAAAAAA
 MAGIC_NUMBER_FREED = 0xCCCCCCCC
 MAGIC_NUMBER_ALLOCATED_REL = 0xAA
 MAGIC_NUMBER_FREED_REL = 0xCC
+DEBUG_MAGIC_NUMBER = 0x13371337
 
 HEADER_SIZE_FULL = 12  # 3 uint32s
 HEADER_SIZE_REL = 8    # 2 uint32s
+DEBUG_BLOCK_SIZE = 20  # 5 uint32s
 
 class PoolValidator:
     def __init__(self, filename):
@@ -19,6 +21,18 @@ class PoolValidator:
         self.warnings = []
         self.headers = []
         self.pool_size_words = 0  # Will be set when file is read
+        self.debug_block = None  # Will store debug block data if found
+    
+    @staticmethod
+    def format_size(size_bytes):
+        """Convert bytes to human-readable format"""
+        units = ['B', 'KB', 'MB', 'GB', 'TB']
+        size = float(size_bytes)
+        unit_idx = 0
+        while size >= 1024 and unit_idx < len(units) - 1:
+            size /= 1024.0
+            unit_idx += 1
+        return "{0:.2f} {1}".format(size, units[unit_idx])
         
     def read_file(self):
         """Read the binary dump file"""
@@ -54,6 +68,50 @@ class PoolValidator:
             self.mode = "RELATIVE"
             print("[INFO] Detected RELATIVE mode (no magic at offset 0: 0x{0:08X})".format(first_magic))
             return True
+    
+    def find_debug_block(self):
+        """Search for and parse the debug block by its magic number"""
+        print("\n--- Searching for Debug Block ---")
+        
+        if len(self.data) < DEBUG_BLOCK_SIZE:
+            print("[INFO] File too small to contain debug block")
+            return False
+        
+        # Scan every 4-byte (word) boundary for the debug magic number
+        for offset in range(0, len(self.data) - DEBUG_BLOCK_SIZE + 1, 4):
+            magic = struct.unpack('<I', self.data[offset:offset + 4])[0]
+            
+            if magic == DEBUG_MAGIC_NUMBER:
+                # Found debug block, parse all 4 fields
+                debug_magic, debug_last_pos, debug_last_pos_perf, debug_pool_cap, debug_totalsize = struct.unpack(
+                    '<IIIII', self.data[offset:offset + DEBUG_BLOCK_SIZE])
+                
+                debug_index = offset // 4
+                self.debug_block = {
+                    'index': debug_index,
+                    'offset': offset,
+                    'magic': debug_magic,
+                    'last_pos': debug_last_pos,
+                    'last_pos_perf_penalty': debug_last_pos_perf,
+                    'pool_capacity': debug_pool_cap,
+                    'total_size': debug_totalsize
+                }
+                
+                print("[OK] Found debug block at idx=0x{0:06X} (offset 0x{1:X})".format(debug_index, offset))
+                print("  last_pos: 0x{0:08X}".format(debug_last_pos))
+                print("  last_pos_perf_penalty: 0x{0:08X}".format(debug_last_pos_perf))
+                print("  pool_capacity: 0x{0:08X} ({1})".format(debug_pool_cap, self.format_size(debug_pool_cap)))
+                
+                # Calculate and display usage percentage based on actual file size
+                if debug_totalsize > 0:
+                    usage_percent = (float(debug_pool_cap) / float(debug_totalsize)) * 100.0
+                    print("  Pool usage: {0:.2f}% ({1} / {2})".format(
+                        usage_percent,
+                        self.format_size(debug_pool_cap),
+                        self.format_size(debug_totalsize)))
+                
+                return True
+        return False
     
     def parse_full_mode(self):
         """Parse headers in FULL mode (absolute indexing)"""
@@ -388,6 +446,8 @@ class PoolValidator:
         
         if not self.detect_mode():
             return False
+        
+        self.find_debug_block()
         
         if self.mode == "FULL":
             self.parse_full_mode()

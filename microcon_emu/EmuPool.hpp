@@ -8,6 +8,19 @@
 
 #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
+#define USE_DEBUG_BLOCK /* if defined, we will allocate one block to store debug information */
+
+#ifdef USE_DEBUG_BLOCK
+#define DEBUG_MAGIC_NUMBER 0x13371337
+typedef struct {
+    uint32 debug_magic; /* 0x13371337 */
+    uint32 debug_last_pos;
+    uint32 debug_last_pos_perf_penalty;
+    uint32 debug_logalloc_pool_cap;
+    uint32 debug_logalloc_totalsize; /* total size of the logalloc pool - fixed */
+} logalloc_debug_block;
+#endif
+
 #ifdef RELATIVE_INDEXING
 typedef struct {
     uint32 firstword;   /* [31:24] prev1 | [23:16] next0 | [15:8] prev0 | [7:0] magicnum0 */
@@ -16,8 +29,6 @@ typedef struct {
 
 #define MAGIC_NUMBER 0xAA
 #define MAGIC_NUMBER_FREE 0xCC  /* need at least two bits different for validity check(OR) */
-
-
 #else
 /* type definitions */
 typedef struct {
@@ -176,7 +187,7 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
 
 
 #if defined(USE_EMUPOOL)
-#define BASE_ALLOC 16
+#define BASE_ALLOC 32
 /* TODO: align_bytes set to BASE_ALLOC for now */
 #define emalloc(size) (uint32*)logalloc_allocate_memory(size, BASE_ALLOC)
 #define ecalloc(elem, size) (uint32*)logalloc_allocate_clear_memory(elem * size, BASE_ALLOC)

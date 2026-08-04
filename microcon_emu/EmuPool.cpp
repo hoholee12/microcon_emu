@@ -86,6 +86,10 @@ uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses *
 uint32 last_pos = 0;    /* last position for better performance */
 uint32 last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
 uint32 logalloc_pool_cap = 0;
+#ifdef USE_DEBUG_BLOCK
+logalloc_debug_block* debug_block; /* pointer to debug block for debugging purposes */
+uint32 debug_block_init = 0;
+#endif
 
 #ifdef RELATIVE_INDEXING
 void logalloc_init()
@@ -137,6 +141,17 @@ void logalloc_init()
     last_pos = 0;
     logalloc_pool_cap += blocksize * 3;
     last_pos_perf_penalty = 0;
+
+#ifdef USE_DEBUG_BLOCK
+    /* allocate a debug block for debugging purposes */
+    debug_block = (logalloc_debug_block*)logalloc_allocate_memory(sizeof(logalloc_debug_block), 0);
+    debug_block->debug_magic = DEBUG_MAGIC_NUMBER;
+    debug_block->debug_last_pos = last_pos;
+    debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+    debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    debug_block->debug_logalloc_totalsize = sizeof(logalloc_pool);
+    debug_block_init = 1;
+#endif
 }
 #else
 void logalloc_init()
@@ -169,6 +184,17 @@ void logalloc_init()
     logalloc_pool_cap = blocksize * 3;
 
     last_pos_perf_penalty = 0;
+    
+#ifdef USE_DEBUG_BLOCK
+    /* allocate a debug block for debugging purposes */
+    debug_block = (logalloc_debug_block*)logalloc_allocate_memory(sizeof(logalloc_debug_block), 0);
+    debug_block->debug_magic = DEBUG_MAGIC_NUMBER;
+    debug_block->debug_last_pos = last_pos;
+    debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+    debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    debug_block->debug_logalloc_totalsize = sizeof(logalloc_pool);
+    debug_block_init = 1;
+#endif
 }
 #endif
 
@@ -235,6 +261,16 @@ void logalloc_free_memory(void* ptr)
     /* destroy */
     RELADR_HEAD_UPDATE_FREE(baseindex, RELADR_PREV_OFFSET(baseindex)); /* mark as freed */
     logalloc_pool_cap -= (real_nextindex - baseindex); /* update capacity */
+
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
 }
 #else
 void logalloc_free_memory(void* ptr)
@@ -286,6 +322,16 @@ void logalloc_free_memory(void* ptr)
     curr_header->magic = MAGIC_NUMBER_FREE; /* mark as freed */
     curr_header->next = 0; /* free blocks dont have a defined next index */
     logalloc_pool_cap -= (real_nextindex - baseindex); /* update capacity */
+
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
 }
 #endif
 
@@ -477,7 +523,16 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
         m_assert(curr_index != last_pos, "searched the logalloc pool far and wide "
             "but could not find a consecutive block to spare");
     }
-    
+
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
 }
 #else
 void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
@@ -641,6 +696,15 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
             "but could not find a consecutive block to spare");
     }
     
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
 }
 #endif
 

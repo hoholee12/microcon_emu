@@ -199,6 +199,8 @@ void Core_start(Thread_data* mydata) {
 // 	efree((uint32*)(logalloc_pool + 0x3));
 // #endif
 	uint32* hello = emalloc(10 * sizeof(uint32));
+	logalloc_dump_pool();
+	exit(0);
 	for(int i = -3; i < 10; i++){
 		eprintf("%d\n", hello[i]);
 	}
@@ -218,11 +220,8 @@ void Core_start(Thread_data* mydata) {
 
 	/* memory allocator aging test */
 	/* TC1: allocate and free a 999KB block 1000 times */
-	logalloc_dump_pool();
 	for (int i = 0; i < 1000; i++) {
 		uint32* test = emalloc(999 * 1024);
-		logalloc_dump_pool();
-		exit(0);
 		efree(test);
 	}
 
@@ -384,6 +383,7 @@ void Core_start(Thread_data* mydata) {
 	}
 	eprintf("TC9: freed %d pairs, total freed size: %u bytes (%.2f KB)\n", freed_pairs, total_freed_size, total_freed_size / 1024.0);
 
+
 	// Try to allocate 10KB blocks into the coalesced gaps
 	eprintf("TC9: attempting to allocate 10KB blocks into coalesced gaps (keep alive to verify different addresses)\n");
 	uint32* coal_realloc_blocks[52];
@@ -450,9 +450,6 @@ void Core_start(Thread_data* mydata) {
 		}
 	}
 	eprintf("TC9: cleanup complete\n");
-
-	logalloc_dump_pool();
-	exit(0);
 
 
 	Clock_init();
