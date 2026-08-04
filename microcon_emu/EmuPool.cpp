@@ -81,7 +81,7 @@
  * one cycle is complete without the pool end limit.
  */
 
-uint32 logalloc_pool[MAX_POOL_SIZE / sizeof(uint32)];
+uint32 *logalloc_pool;
 uint32 last_pos_perf_penalty = 0;    /* performance metric for last_pos misses */
 uint32 last_pos = 0;    /* last position for better performance */
 uint32 last_alloc_pos = (MAX_POOL_SIZE - sizeof(logalloc_block_header)) / sizeof(uint32);
@@ -102,7 +102,8 @@ void logalloc_init()
     uint32 blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
     prev_gap_pos = blocksize; /* the first gap block is after the first sentinel block */
 
-    memset(logalloc_pool, 0, sizeof(logalloc_pool));
+    logalloc_pool = (uint32*)malloc(MAX_POOL_SIZE * sizeof(uint32));
+    memset(logalloc_pool, 0, MAX_POOL_SIZE * sizeof(uint32));
     last_pos = 0;
     logalloc_pool_cap = 0;
 
@@ -159,7 +160,8 @@ void logalloc_init()
     logalloc_block_header* curr_header;
     uint32 blocksize = sizeof(logalloc_block_header) / sizeof(uint32); /* the beginning and the end */
 
-    memset(logalloc_pool, 0, sizeof(logalloc_pool));
+    logalloc_pool = (uint32*)malloc(MAX_POOL_SIZE * sizeof(uint32));
+    memset(logalloc_pool, 0, MAX_POOL_SIZE * sizeof(uint32));
     last_pos = 0;
     logalloc_pool_cap = 0;
     

@@ -16,7 +16,7 @@ typedef struct {
     uint32 debug_magic; /* 0x13371337 */
     uint32 debug_last_pos;
     uint32 debug_last_pos_perf_penalty;
-    
+
     /* units are in word */
     uint32 debug_logalloc_pool_cap;
     uint32 debug_logalloc_totalsize; /* total size of the logalloc pool - update only at init */
@@ -44,7 +44,7 @@ typedef struct {
 
 
 /* one bit per 1KB block */
-extern uint32 logalloc_pool[];
+extern uint32* logalloc_pool;
 extern void* logalloc_allocate_clear_memory(uint32 size, uint32 align_bytes);
 extern void* logalloc_allocate_memory(uint32 size, uint32 align_bytes);
 extern void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes);
