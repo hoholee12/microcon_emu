@@ -16,8 +16,10 @@ typedef struct {
     uint32 debug_magic; /* 0x13371337 */
     uint32 debug_last_pos;
     uint32 debug_last_pos_perf_penalty;
+    
+    /* units are in word */
     uint32 debug_logalloc_pool_cap;
-    uint32 debug_logalloc_totalsize; /* total size of the logalloc pool - fixed */
+    uint32 debug_logalloc_totalsize; /* total size of the logalloc pool - update only at init */
 } logalloc_debug_block;
 #endif
 
