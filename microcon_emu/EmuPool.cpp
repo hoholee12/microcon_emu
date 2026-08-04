@@ -118,12 +118,13 @@ void logalloc_init()
     else
     {
         RELADR_HEAD_UPDATE(0, blocksize, UINT24_MAX); /* first block for wraparound */
+        RELADR_HEAD_UPDATE_FREE(blocksize, blocksize);
         while(prev_pos + UINT24_MAX < last_alloc_pos)
         {
             curr_pos = prev_pos + UINT24_MAX;
             curr_gap_pos = prev_gap_pos + UINT24_MAX;
 
-            RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX, UINT24_MAX);
+            RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX - blocksize, UINT24_MAX);
             RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
 
             prev_pos = curr_pos;
@@ -132,10 +133,10 @@ void logalloc_init()
         }
 
         /* last block */
-        RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX, last_alloc_pos - curr_pos); /* one last middle sentinel and a gap */
+        RELADR_HEAD_UPDATE(curr_pos, UINT24_MAX - blocksize, last_alloc_pos - curr_pos); /* one last middle sentinel and a gap */
         RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
 
-        RELADR_HEAD_UPDATE(last_alloc_pos, last_alloc_pos - curr_pos, blocksize); /* end block for wraparound */
+        RELADR_HEAD_UPDATE(last_alloc_pos, last_alloc_pos - curr_gap_pos, blocksize); /* end block for wraparound */
 
     }
 
