@@ -3,82 +3,153 @@
 #include <ctime>
 #include <stdio.h>
 
-/* simple memory allocator for emulation structures
- * structure:
- * 1MB buffer
+/* EmuPool - Custom Memory Allocator for Emulation Structures
  * 
- * - header -
- * first 4byte: magic number for corruption detection (0xAAAAAAAA for allocated, 0xBBBBBBBB for freed)
- * second 4byte: previous block's starting address + 3 (starting address without the header)
- * third 4byte: next block's starting address
+ * OVERVIEW:
+ * Linked-list based allocator with gap detection, coalescing, alignment support, and wraparound sentinels.
+ * Supports two modes: RELATIVE_INDEXING (space-efficient, 24-bit offsets) and absolute indexing (32-bit pointers).
  * 
- * if a middle block is freed, previous block's next pointer is set to the next of the freed block
- * freed block's magic number is cleared to 0, next pointer is cleared to 0
- * IMPORTANT: freed block's prev pointer is PRESERVED (not cleared) for coalescing logic
- * ending address + 1 is the address to the first byte of previous block (needed to traverse backwards)
- * so for the single block, [0] is a magic number, [1] is previous block's starting address, [2] is next block's starting address, [3] is first byte of this block.
- *
- * for example: lets say we allocate 3 blocks of 0x2000 bytes each
- * - first block
- * [0] = 0xAAAAAAAA (magic number for corruption detection)
- * [1] = (previous block's starting address; which should be 0 if this is the first block)
- * [2] = 0x2003 (next block's starting address; 0x2000 + 3 for this block's header)
- * [3] = 0xXXXX (first byte of this block)
- * ...
- * [0x2002] = 0xXXXX (last byte of this block)
- * - second block
- * [0x2003] = 0xAAAAAAAA
- * [0x2004] = 0x3 (previous block's starting address) - 0 + 3
- * [0x2005] = 0x4006 (next block's starting address)
- * [0x2006] = 0xYYYY (first byte of this block)
- * ...
- * [0x4005] = 0xYYYY (last byte of this block)
- * - third block
- * [0x4006] = 0xAAAAAAAA
- * [0x4007] = 0x2009 (previous block's starting address)
- * [0x4008] = 0x6009 (next block's starting address; points to a place that doesn't exist, but is done anyway to indicate the end of the pool)
- * [0x4009] = 0xZZZZ (first byte of this block)
- * ...
- * [0x6008] = 0xZZZZ (last byte of this block)
- * - no blocks after this point
- * [0x6009] = 0xAAAAAAAA (assigned when inserting the third block)
- * [0x600A] = 0x400A (previous block's starting address; assigned when inserting the third block)
- * [0X600B] = 0x0
- * ...
- *  - that's it.
  * 
- * when allocating freed blocks, we can check for the free blocks by checking the [1] of the next block and [0] of the current block.
- * allocation always goes left -> right. it does not go reverse. we can use this fact to indicate an empty gap.
- * when we dealloc block B (between A and C):
- * block A -> update A's next pointer to point to block C (skip over freed B)
- * block B -> clear magic to 0xBBBBBBBB and KEEP prev pointer
- * block C -> should point to the now removed block B
+ * HEADER STRUCTURE
  * 
- * Gap detection during allocation:
- * When traversing blocks, if we find that current_block.prev != expected_prev_addr,
- * it means there's a freed block between the previous block and current block.
- * The freed block's address is (current_block.prev - 3) since prev points to data, not header.
- * Gap size = current_block_addr - freed_block_addr
  * 
- * Block coalescing during deallocation:
- * Before marking a block as freed, check if adjacent blocks are already free:
- * 1. Check previous: if prev_block.next != our_header_addr, there's a gap before us
- *    - If prev_block.next == 0, the previous block is freed (walk backwards through chain)
- *    - Walk backwards using preserved prev pointers until we find an allocated block 
- *      (magic == 0xAAAAAAAA)
- *    - This handles chains of multiple consecutive freed blocks
- * 2. Check next: if next_block.magic == 0xBBBBBBBB, the next block is already freed
- *    - Scan forward through consecutive freed blocks to find the final next pointer
- * 3. When coalescing, update forward links to skip over all freed blocks in the chain
- * 4. Example: A -> [freed B] -> [freed C] -> [to-free D] -> E becomes A -> E
- *    - When freeing D, walk backwards through C and B to find A
- *    - Update A's next pointer to point to E, skipping over B, C, and D
- * 5. This creates larger contiguous free spaces for bigger allocations
- * 6. The preserved prev pointers in freed blocks enable this backward traversal
+ * RELATIVE_INDEXING mode (8 bytes):
+ * - 2 words with position-based XOR encoding for corruption detection
+ * - Magic number: 0xAA (allocated) or 0xCC (freed)
+ * - Prev offset: 24-bit signed offset to previous block
+ * - Next offset: 24-bit signed offset to next block
+ * - Encoding: firstword = (~index) XOR data, secondword = index XOR data
+ * - Offsets wrap around at pool boundaries automatically
  * 
- * We put wraparound sentinels at each ends of the pool array (two empty pre-allocated blocks)
- * so that the search can start anywhere on the pool, and wraparound to keep searching until 
- * one cycle is complete without the pool end limit.
+ * Absolute indexing mode (12 bytes):
+ * - Magic: 32-bit (0xAAAAAAAA allocated, 0xCCCCCCCC freed)
+ * - Prev: 32-bit absolute index to previous block
+ * - Next: 32-bit absolute index to next block
+ * 
+ * 
+ * ALLOCATION STRUCTURE
+ * 
+ * 
+ * Each allocation consists of:
+ * [Header][Data...]
+ * 
+ * Returned pointer points to Data, not Header.
+ * Header can be accessed by subtracting header_size from returned pointer.
+ * 
+ * 
+ * SENTINEL BLOCKS (Wraparound Support)
+ * 
+ * 
+ * Multiple sentinel blocks are distributed across the pool at MEDIAN_SENTINEL_DISTANCE intervals.
+ * Each sentinel consists of an allocated block followed by a gap (free) block.
+ * 
+ * Structure:
+ * - First sentinel at index 0
+ * - Middle sentinels every MEDIAN_SENTINEL_DISTANCE words
+ * - Last sentinel at last_alloc_pos = (MAX_POOL_SIZE - header_size) / sizeof(uint32)
+ * - Each sentinel's next pointer points to the next sentinel (skipping the gap)
+ * 
+ * This...:
+ * - Enables circular wraparound search from any starting position
+ * - Search continues until returning to start position (one full cycle)
+ * 
+ * For small pools (MEDIAN_SENTINEL_DISTANCE >= last_alloc_pos):
+ * - Only two sentinels: one at index 0, one at last_alloc_pos
+ * 
+ * 
+ * GAP DETECTION
+ * 
+ * 
+ * Freed blocks create "gaps" in the linked list:
+ * 1. When block B (between A and C) is freed:
+ *    - Block A's next pointer updated to point to C (skipping B)
+ *    - Block B's magic set to 0xCC (freed marker)
+ *    - Block B's prev pointer PRESERVED (needed for coalescing)
+ *    - Block B's next pointer cleared to 0
+ *    - Block C's prev pointer keeps pointing to B (gap marker)
+ * 
+ * 2. During allocation traversal:
+ *    - If curr_block.prev points to a freed block, a gap exists
+ *    - Gap location: curr_block.prev
+ *    - Gap size: curr_index - gap_index
+ *    - If gap is large enough, allocate there
+ * 
+ * 
+ * COALESCING (Combining Adjacent Freed Blocks)
+ * 
+ * 
+ * During deallocation, adjacent freed blocks are merged:
+ * 
+ * 1. Walk backwards using preserved prev pointers through freed blocks
+ *    until finding an allocated block (magic == 0xAA/0xAAAAAAAA)
+ * 
+ * 2. Update that allocated block's next pointer to skip all consecutive
+ *    freed blocks including the one being freed
+ * 
+ * 3. Example: A -> [freed B] -> [freed C] -> [to-free D] -> E
+ *    Result:  A -> E (with large gap covering B, C, D)
+ * 
+ * This CANNOT reduce external fragmentation, but it avoids traversing multiple freed blocks while searching for gaps.
+ * 
+ * 
+ * ALIGNMENT SUPPORT (Pre-Gap Poking)
+ * 
+ * 
+ * When allocation requires specific alignment:
+ * 
+ * 1. Find a gap large enough to contain:
+ *    - Pre-gap free block (if needed for alignment)
+ *    - Aligned allocation
+ *    - Post-gap free block (if space remains)
+ * 
+ * 2. Calculate aligned position within gap:
+ *    aligned_index = ((gap_index + header_size + align_words - 1) & ~(align_words - 1)) - header_size
+ * 
+ * 3. If gap_index < aligned_index:
+ *    - Create "pre-gap" free block at original gap_index
+ *    - Allocate at aligned_index
+ *    - Update links to include pre-gap in free chain
+ * 
+ * 4. Example (16-byte alignment required):
+ *    Gap at index 0x1234, size 0x100
+ *    Aligned position: 0x1238 (data at 0x123A after header)
+ *    Result: [pre-gap free: 0x1234-0x1237][allocated: 0x1238-...][post-gap if needed]
+ * 
+ * 
+ * PERFORMANCE OPTIMIZATIONS
+ * 
+ * 
+ * last_pos caching:
+ * - Tracks the last successful allocation position
+ * - Next allocation starts searching from last_pos (for locality principle)
+ * - On deallocation, last_pos rewinds to the previous allocated block
+ * 
+ * last_pos_perf_penalty:
+ * - Incremented when last_pos validation fails (corruption or invalid)
+ * 
+ * 
+ * MEMORY LAYOUT EXAMPLE (Absolute Mode)
+ * 
+ * 
+ * Three blocks allocated, middle one freed:
+ * 
+ * Block A (allocated):
+ * [0x0000] magic=0xAAAAAAAA, prev=last_alloc_pos, next=0x2003
+ * [0x0003] ... data ...
+ * 
+ * Block B (freed):
+ * [0x2003] magic=0xCCCCCCCC, prev=0x0000, next=0x0000
+ * [0x2006] ... (freed space) ...
+ * 
+ * Block C (allocated):
+ * [0x4006] magic=0xAAAAAAAA, prev=0x2003 (gap marker), next=last_alloc_pos
+ * [0x4009] ... data ...
+ * 
+ * Sentinel at end:
+ * [last_alloc_pos] magic=0xAAAAAAAA, prev=0x4006, next=0x0000 (wraps to start)
+ * 
+ * Forward chain: A -> C -> Sentinel -> (wrap) A
+ * Gap detected: C.prev (0x2003) points to freed block B
  */
 
 uint32 *logalloc_pool;
