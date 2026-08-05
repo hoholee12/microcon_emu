@@ -192,6 +192,9 @@ void Core_start(Thread_data* mydata) {
 
 	logalloc_init();
 
+	logalloc_dump_pool();
+	exit(0);
+
 // #ifdef RELATIVE_INDEXING
 // 	efree((uint32*)(logalloc_pool + 0x2));
 // #else
