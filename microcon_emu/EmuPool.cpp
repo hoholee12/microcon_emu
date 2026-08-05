@@ -132,16 +132,15 @@ void logalloc_init()
             logalloc_pool_cap += blocksize;
         }
 
-        /* last block */
+        /* last block - repeat of the final iter for last_alloc_pos offset calc */
         RELADR_HEAD_UPDATE(curr_pos, MEDIAN_SENTINEL_DISTANCE - blocksize, last_alloc_pos - curr_pos); /* one last middle sentinel and a gap */
         RELADR_HEAD_UPDATE_FREE(curr_gap_pos, blocksize);
 
         RELADR_HEAD_UPDATE(last_alloc_pos, (curr_gap_pos == last_alloc_pos) ? blocksize : (last_alloc_pos - curr_gap_pos), blocksize); /* end block for wraparound */
-
     }
 
     last_pos = 0;
-    logalloc_pool_cap += blocksize * 3;
+    logalloc_pool_cap += blocksize * 2;
     last_pos_perf_penalty = 0;
 
 #ifdef USE_DEBUG_BLOCK
@@ -184,7 +183,7 @@ void logalloc_init()
     curr_header->next = 0; /* wraparound to index 0 */
 
     last_pos = 0;
-    logalloc_pool_cap = blocksize * 3;
+    logalloc_pool_cap = blocksize * 2;
 
     last_pos_perf_penalty = 0;
     
