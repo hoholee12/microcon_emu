@@ -6,7 +6,7 @@
 #define MAX_POOL_SIZE 0x10000000	/* 256MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
-#define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
+// #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
 
 #define MEDIAN_SENTINEL_DISTANCE UINT24_MAX /* (for relative indexing) median sentinel distance can be customized. default max is UINT24_MAX. any number larger than this is ignored btw */
 
@@ -43,6 +43,13 @@ typedef struct {
 #define MAGIC_NUMBER 0xAAAAAAAA
 #define MAGIC_NUMBER_FREE 0xCCCCCCCC
 #endif
+
+#define LOGALLOC_OK 0
+#define LOGALLOC_ERROR_OUT_OF_MEMORY 1
+#define LOGALLOC_ERROR_INVALID_POINTER 2
+#define LOGALLOC_ERROR_MEMORY_CORRUPTION 3
+#define LOGALLOC_ERROR_ENDSENTINEL_BLOCK 4
+#define LOGALLOC_ERROR_UNKNOWN 5
 
 
 /* one bit per 1KB block */

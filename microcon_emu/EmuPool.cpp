@@ -801,6 +801,77 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
 }
 #endif
 
+#ifdef RELATIVE_INDEXING
+uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
+{
+    /* TODO  */
+}
+#else
+uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
+{
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
+    logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
+    m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+    /* get oldsize and gapsize */
+    uint32 nextblock_startidx = curr_header->next;
+    uint32 possible_gap_index = CONV_IDX_TO_ADDR(nextblock_startidx)->prev;
+    uint32 gapsize = (possible_gap_index == baseindex) ? 0 : (nextblock_startidx - possible_gap_index);
+    uint32 oldsize = (gapsize == 0) ? (nextblock_startidx - baseindex) : (possible_gap_index - baseindex);
+    uint32 subtract_flag = 0;
+    uint32 appendsize = 0;
+    if (newsize > oldsize)
+    {
+        appendsize = newsize - oldsize;
+    }
+    else if (newsize < oldsize)
+    {
+        subtract_flag = 1;
+        appendsize = oldsize - newsize;
+    }
+    else
+    {
+        return LOGALLOC_OK; /* do nothing */
+    }
+    
+    /* check if it can be expanded */
+    if ((subtract_flag == 0) && (gapsize >= appendsize))
+    {
+        /* we can expand the block in place */
+        if (gapsize == appendsize)
+        {
+            /* perfect fit, we can just update the next block's prev to point to new block */
+            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = baseindex;
+        }
+        else
+        {
+            /* we can fit more, we need to update the next block's prev to point to new block's next
+             * - we plant gap logic for future allocs here */
+            uint32 post_gap_index = baseindex + newsize;
+            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+            /* TODO */
+        }
+
+        return LOGALLOC_OK;
+    }
+    else
+    {
+        /* TODO */
+    }
+}
+#endif
+
+#ifdef RELATIVE_INDEXING
+uint32 logalloc_move_zero_datablock(void* ptr)
+{
+    /* TODO */
+}
+#else
+uint32 logalloc_move_zero_datablock(void* ptr)
+{
+    /* TODO */
+}
+#endif
+
 void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
 {
     void* temp = logalloc_allocate_memory(size, align_bytes);
