@@ -846,6 +846,7 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
+            RELADR_HEAD_UPDATE_FREE(post_gap_index, post_gap_index - baseindex); /* new gap block */
             logalloc_pool_cap += appendsize;
         }
         else
@@ -858,6 +859,7 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
+            RELADR_HEAD_UPDATE_FREE(post_gap_index, post_gap_index - baseindex); /* new gap block */
             logalloc_pool_cap -= appendsize;
         }
     }
@@ -872,6 +874,15 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
         return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
     }
 
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
     return LOGALLOC_OK;
 }
 #else
@@ -915,6 +926,10 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+            logalloc_block_header* post_gap_header = CONV_IDX_TO_ADDR(post_gap_index);
+            post_gap_header->magic = MAGIC_NUMBER_FREE;
+            post_gap_header->prev = baseindex;
+            post_gap_header->next = 0; /* free blocks dont have a defined next index */
             logalloc_pool_cap += appendsize;
         }
         else
@@ -926,6 +941,10 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+            logalloc_block_header* post_gap_header = CONV_IDX_TO_ADDR(post_gap_index);
+            post_gap_header->magic = MAGIC_NUMBER_FREE;
+            post_gap_header->prev = baseindex;
+            post_gap_header->next = 0; /* free blocks dont have a defined next index */
             logalloc_pool_cap -= appendsize;
         }
     }
@@ -940,6 +959,15 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
         return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
     }
 
+#ifdef USE_DEBUG_BLOCK
+    /* update debug block */
+    if (debug_block_init == 1)
+    {
+        debug_block->debug_last_pos = last_pos;
+        debug_block->debug_last_pos_perf_penalty = last_pos_perf_penalty;
+        debug_block->debug_logalloc_pool_cap = logalloc_pool_cap;
+    }
+#endif
     return LOGALLOC_OK;
 }
 #endif

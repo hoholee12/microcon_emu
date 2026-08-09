@@ -459,9 +459,11 @@ void Core_start(Thread_data* mydata) {
 		for (int w = 0; w < write_words; w++) {
 			realloc_test[w] = 0xABCD0000 + w;
 		}
+		logalloc_dump_pool();
 		
 		// Reallocate to larger size
 		realloc_test = (uint32*)erealloc(realloc_test, 50 * 1024);
+		logalloc_dump_pool();
 		if (realloc_test != NULL) {
 			// Verify old data is preserved
 			int verify_error = 0;
