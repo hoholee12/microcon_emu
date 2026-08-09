@@ -485,6 +485,7 @@ void Core_start(Thread_data* mydata) {
 			efree(realloc_test);
 		}
 	}
+	logalloc_dump_pool();
 
 	/* TC11: basic realloc - shrink larger block to smaller */
 	eprintf("TC11: basic realloc - shrink block from 50KB to 10KB\n");
@@ -514,6 +515,7 @@ void Core_start(Thread_data* mydata) {
 			efree(realloc_shrink);
 		}
 	}
+	logalloc_dump_pool();
 
 	/* TC12: multiple successive reallocations on same block */
 	eprintf("TC12: multiple successive reallocations with size changes\n");
@@ -551,6 +553,7 @@ void Core_start(Thread_data* mydata) {
 		
 		efree(multi_realloc);
 	}
+	logalloc_dump_pool();
 
 	/* TC13: stress test - rapid reallocations with different sizes */
 	eprintf("TC13: stress test - rapid realloc with alternating sizes\n");
@@ -579,6 +582,7 @@ void Core_start(Thread_data* mydata) {
 		}
 		efree(stress_realloc);
 	}
+	logalloc_dump_pool();
 
 	/* TC14: realloc with multiple blocks (check for corruption) */
 	eprintf("TC14: realloc with multiple active blocks\n");
@@ -628,6 +632,7 @@ void Core_start(Thread_data* mydata) {
 			efree(blocks_for_realloc[i]);
 		}
 	}
+	logalloc_dump_pool();
 
 	/* TC15: realloc to same size (should handle gracefully) */
 	eprintf("TC15: realloc to same size\n");
