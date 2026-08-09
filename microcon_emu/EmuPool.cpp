@@ -1106,6 +1106,11 @@ uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 
 void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
 {
+    uint32 result = logalloc_expand_datablock(ptr, size);
+    if (result == LOGALLOC_OK)
+    {
+        return ptr;
+    }
     void* temp = logalloc_allocate_memory(size, align_bytes);
     memcpy(temp, ptr, size);
 
