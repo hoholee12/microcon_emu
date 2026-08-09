@@ -213,7 +213,7 @@ static inline uint32 RELADR_MAGIC_NUMBER(uint32 index)
  * required to make sure we dont lose accuracy while tracking capacity */
 static inline uint32 INLINE_HEADER_ALIGN_CHECK(uint32 index)
 {
-    if (index & (sizeof(logalloc_block_header) / sizeof(uint32) - 1) == 0)
+    if ((index & (sizeof(logalloc_block_header) / sizeof(uint32) - 1)) == 0)
     {
         return LOGALLOC_OK;
     }
