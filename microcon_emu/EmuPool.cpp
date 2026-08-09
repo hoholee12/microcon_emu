@@ -805,8 +805,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
 uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
 {
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
-    logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
-    m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+    m_assert(RELADR_MAGIC_NUMBER(baseindex) == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     /* get oldsize and gapsize */
     uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
     uint32 nextblock_startoffset = RELADR_NEXT_OFFSET(baseindex);
@@ -922,12 +921,162 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
 #ifdef RELATIVE_INDEXING
 uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 {
-    /* TODO */
+    uint32 headersize = sizeof(logalloc_block_header) / sizeof(uint32);
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
+    m_assert(RELADR_MAGIC_NUMBER(baseindex) == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+    
+    uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
+    uint32 prevblock_startidx = RELADR_PREV_IDX(baseindex);
+    uint32 possible_range_startidx = 0;
+    uint32 possible_range_endidx = 0;
+    uint32 left_section_gap_exists = 0;
+    uint32 rightside_gap_index = newindex + headersize;
+    
+    /* check the data size first
+     * if its not 0, its an error */
+    m_assert((RELADR_PREV_IDX(nextblock_startidx) - baseindex) == headersize, "move_zero_datablock expects an allocated block with data size of 0 (usually median sentinel)");
+    
+    /* check gap from left and right
+     * we can only move the block as far as gap range goes */
+
+    if (RELADR_MAGIC_NUMBER(prevblock_startidx) == MAGIC_NUMBER_FREE)
+    {
+        possible_range_startidx = prevblock_startidx;
+        left_section_gap_exists = 1;
+    }
+    else
+    {
+        possible_range_startidx = baseindex;
+    }
+
+    if (RELADR_MAGIC_NUMBER(RELADR_PREV_IDX(nextblock_startidx)) == MAGIC_NUMBER_FREE)
+    {
+        possible_range_endidx = nextblock_startidx - headersize;
+    }
+    else
+    {
+        possible_range_endidx = baseindex;
+    }
+    
+    /* validate newindex */
+    if (baseindex == newindex)
+    {
+        /* do nothing */
+    }
+    else if ((possible_range_startidx <= newindex) && (possible_range_endidx >= newindex))
+    {
+        if (left_section_gap_exists == 1)
+        {
+            uint32 prev_prevblock_startidx = RELADR_PREV_IDX(prevblock_startidx);
+            RELADR_HEAD_UPDATE(prev_prevblock_startidx, RELADR_PREV_OFFSET(prev_prevblock_startidx), newindex - prev_prevblock_startidx);
+        }
+        else
+        {
+            RELADR_HEAD_UPDATE(prevblock_startidx, RELADR_PREV_OFFSET(prevblock_startidx), newindex - prevblock_startidx);
+        }
+        RELADR_HEAD_UPDATE(newindex, newindex - prevblock_startidx, nextblock_startidx - newindex);
+        
+        /* put rightside free block if needed */
+        if (possible_range_endidx >= rightside_gap_index)
+        {
+            RELADR_HEAD_UPDATE_FREE(rightside_gap_index, rightside_gap_index - newindex);
+            RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startidx - rightside_gap_index, RELADR_NEXT_OFFSET(nextblock_startidx));
+        }
+        else
+        {
+            RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startidx - newindex, RELADR_NEXT_OFFSET(nextblock_startidx));
+        }
+    }
+    else
+    {
+        return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+    }
+
+    return LOGALLOC_OK;
 }
 #else
 uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 {
+    uint32 headersize = sizeof(logalloc_block_header) / sizeof(uint32);
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
+    logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
+    m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     
+    uint32 nextblock_startidx = curr_header->next;
+    uint32 prevblock_startidx = curr_header->prev;
+    uint32 possible_range_startidx = 0;
+    uint32 possible_range_endidx = 0;
+    logalloc_block_header* prevblock_header = CONV_IDX_TO_ADDR(prevblock_startidx);
+    logalloc_block_header* nextblock_header = CONV_IDX_TO_ADDR(nextblock_startidx);
+    logalloc_block_header* newblock_header = CONV_IDX_TO_ADDR(newindex);
+    uint32 left_section_gap_exists = 0;
+    uint32 rightside_gap_index = newindex + headersize;
+    
+    /* check the data size first
+     * if its not 0, its an error */
+    m_assert((nextblock_header->prev - baseindex) == headersize, "move_zero_datablock expects an allocated block with data size of 0 (usually median sentinel)");
+    
+    /* check gap from left and right
+     * we can only move the block as far as gap range goes */
+
+    if (CONV_IDX_TO_ADDR(prevblock_startidx)->magic == MAGIC_NUMBER_FREE)
+    {
+        possible_range_startidx = prevblock_startidx;
+        left_section_gap_exists = 1;
+    }
+    else
+    {
+        possible_range_startidx = baseindex;
+    }
+
+    if (CONV_IDX_TO_ADDR(CONV_IDX_TO_ADDR(nextblock_startidx)->prev)->magic == MAGIC_NUMBER_FREE)
+    {
+        possible_range_endidx = nextblock_startidx - headersize;
+    }
+    else
+    {
+        possible_range_endidx = baseindex;
+    }
+    
+    /* validate newindex */
+    if (baseindex == newindex)
+    {
+        /* do nothing */
+    }
+    else if ((possible_range_startidx <= newindex) && (possible_range_endidx >= newindex))
+    {
+        if (left_section_gap_exists == 1)
+        {
+            CONV_IDX_TO_ADDR(prevblock_header->prev)->next = newindex;
+        }
+        else
+        {
+            prevblock_header->next = newindex;
+        }
+        newblock_header->magic = MAGIC_NUMBER;
+        newblock_header->prev = prevblock_startidx; /* points to either gap or legit alloc block */
+        newblock_header->next = nextblock_startidx;
+        /* put rightside free block if needed */
+        if (possible_range_endidx >= rightside_gap_index)
+        {
+            logalloc_block_header* rightside_gap_header = CONV_IDX_TO_ADDR(rightside_gap_index);
+            rightside_gap_header->magic = MAGIC_NUMBER_FREE;
+            rightside_gap_header->prev = newindex;
+            rightside_gap_header->next = 0;
+            nextblock_header->prev = rightside_gap_index;
+        }
+        else
+        {
+            nextblock_header->prev = newindex;
+        }
+    }
+    else
+    {
+        return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+    }
+
+    return LOGALLOC_OK;
+
 }
 #endif
 
