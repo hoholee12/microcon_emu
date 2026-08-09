@@ -846,6 +846,7 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
+            logalloc_pool_cap += appendsize;
         }
         else
         {
@@ -857,12 +858,14 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
+            logalloc_pool_cap -= appendsize;
         }
     }
     else if (gapsize == appendsize)
     {
         /* perfect fit, we can just update the next block's prev to point to new block */
         RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startoffset, RELADR_NEXT_OFFSET(nextblock_startidx));
+        logalloc_pool_cap += appendsize;
     }
     else /* gapsize < appendsize - return error */
     {
@@ -912,6 +915,7 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+            logalloc_pool_cap += appendsize;
         }
         else
         {
@@ -922,12 +926,14 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
                 return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
             }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+            logalloc_pool_cap -= appendsize;
         }
     }
     else if (gapsize == appendsize)
     {
         /* update the next blocks prev to point to prev alloc block (to highlight no gap) */
         CONV_IDX_TO_ADDR(nextblock_startidx)->prev = baseindex;
+        logalloc_pool_cap += appendsize;
     }
     else /* gapsize < appendsize - return error */
     {

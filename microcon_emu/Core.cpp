@@ -449,6 +449,215 @@ void Core_start(Thread_data* mydata) {
 	eprintf("TC9: cleanup complete\n");
 
 	logalloc_dump_pool();
+
+	/* TC10: basic realloc - grow smaller block to larger */
+	eprintf("TC10: basic realloc - grow block from 10KB to 50KB\n");
+	uint32* realloc_test = emalloc(10 * 1024);
+	if (realloc_test != NULL) {
+		// Write pattern to original block
+		int write_words = (10 * 1024) / sizeof(uint32);
+		for (int w = 0; w < write_words; w++) {
+			realloc_test[w] = 0xABCD0000 + w;
+		}
+		
+		// Reallocate to larger size
+		realloc_test = (uint32*)erealloc(realloc_test, 50 * 1024);
+		if (realloc_test != NULL) {
+			// Verify old data is preserved
+			int verify_error = 0;
+			for (int w = 0; w < write_words; w++) {
+				if (realloc_test[w] != (0xABCD0000 + w)) {
+					eprintf("TC10: DATA LOSS after grow realloc, word %d\n", w);
+					verify_error = 1;
+					break;
+				}
+			}
+			if (!verify_error) {
+				eprintf("TC10: data preserved after grow - OK\n");
+			}
+			
+			// Fill new space
+			int new_words = (50 * 1024) / sizeof(uint32);
+			for (int w = write_words; w < new_words; w++) {
+				realloc_test[w] = 0xEF120000 + w;
+			}
+			eprintf("TC10: filled new space - OK\n");
+			efree(realloc_test);
+		}
+	}
+
+	/* TC11: basic realloc - shrink larger block to smaller */
+	eprintf("TC11: basic realloc - shrink block from 50KB to 10KB\n");
+	uint32* realloc_shrink = emalloc(50 * 1024);
+	if (realloc_shrink != NULL) {
+		// Write pattern
+		int write_words = (10 * 1024) / sizeof(uint32);
+		for (int w = 0; w < write_words; w++) {
+			realloc_shrink[w] = 0x12340000 + w;
+		}
+		
+		// Reallocate to smaller size
+		realloc_shrink = (uint32*)erealloc(realloc_shrink, 10 * 1024);
+		if (realloc_shrink != NULL) {
+			// Verify data is preserved after shrink
+			int verify_error = 0;
+			for (int w = 0; w < write_words; w++) {
+				if (realloc_shrink[w] != (0x12340000 + w)) {
+					eprintf("TC11: DATA LOSS after shrink realloc, word %d\n", w);
+					verify_error = 1;
+					break;
+				}
+			}
+			if (!verify_error) {
+				eprintf("TC11: data preserved after shrink - OK\n");
+			}
+			efree(realloc_shrink);
+		}
+	}
+
+	/* TC12: multiple successive reallocations on same block */
+	eprintf("TC12: multiple successive reallocations with size changes\n");
+	uint32* multi_realloc = emalloc(5 * 1024);
+	if (multi_realloc != NULL) {
+		// Pattern 1
+		for (int w = 0; w < (5 * 1024) / sizeof(uint32); w++) {
+			multi_realloc[w] = 0x11110000 + w;
+		}
+		
+		// First resize - grow
+		multi_realloc = (uint32*)erealloc(multi_realloc, 20 * 1024);
+		eprintf("TC12: resize 5KB -> 20KB - OK\n");
+		
+		// Second resize - shrink
+		multi_realloc = (uint32*)erealloc(multi_realloc, 10 * 1024);
+		eprintf("TC12: resize 20KB -> 10KB - OK\n");
+		
+		// Third resize - grow again
+		multi_realloc = (uint32*)erealloc(multi_realloc, 30 * 1024);
+		eprintf("TC12: resize 10KB -> 30KB - OK\n");
+		
+		// Verify original data still preserved
+		int verify_error = 0;
+		for (int w = 0; w < (5 * 1024) / sizeof(uint32); w++) {
+			if (multi_realloc[w] != (0x11110000 + w)) {
+				eprintf("TC12: DATA CORRUPTION after multiple reallocations, word %d\n", w);
+				verify_error = 1;
+				break;
+			}
+		}
+		if (!verify_error) {
+			eprintf("TC12: data integrity preserved through multiple reallocations - OK\n");
+		}
+		
+		efree(multi_realloc);
+	}
+
+	/* TC13: stress test - rapid reallocations with different sizes */
+	eprintf("TC13: stress test - rapid realloc with alternating sizes\n");
+	uint32* stress_realloc = emalloc(10 * 1024);
+	if (stress_realloc != NULL) {
+		int realloc_iterations = 100;
+		int stress_errors = 0;
+		
+		for (int i = 0; i < realloc_iterations; i++) {
+			// Alternate between growing and shrinking
+			if (i % 2 == 0) {
+				stress_realloc = (uint32*)erealloc(stress_realloc, 100 * 1024);
+			} else {
+				stress_realloc = (uint32*)erealloc(stress_realloc, 10 * 1024);
+			}
+			
+			if (stress_realloc == NULL) {
+				eprintf("TC13: erealloc failed at iteration %d\n", i);
+				stress_errors++;
+				break;
+			}
+		}
+		
+		if (stress_errors == 0) {
+			eprintf("TC13: completed %d rapid reallocations - OK\n", realloc_iterations);
+		}
+		efree(stress_realloc);
+	}
+
+	/* TC14: realloc with multiple blocks (check for corruption) */
+	eprintf("TC14: realloc with multiple active blocks\n");
+	uint32* blocks_for_realloc[10];
+	
+	// Allocate initial blocks
+	for (int i = 0; i < 10; i++) {
+		blocks_for_realloc[i] = emalloc(5 * 1024);
+		if (blocks_for_realloc[i] != NULL) {
+			// Write pattern
+			int write_words = (5 * 1024) / sizeof(uint32);
+			for (int w = 0; w < write_words; w++) {
+				blocks_for_realloc[i][w] = 0x50000000 + (i << 16) + w;
+			}
+		}
+	}
+	
+	// Reallocate every other block
+	for (int i = 0; i < 10; i += 2) {
+		if (blocks_for_realloc[i] != NULL) {
+			blocks_for_realloc[i] = (uint32*)erealloc(blocks_for_realloc[i], 20 * 1024);
+		}
+	}
+	
+	// Verify all blocks still have correct data
+	int tc14_errors = 0;
+	for (int i = 0; i < 10; i++) {
+		if (blocks_for_realloc[i] != NULL) {
+			int check_words = (5 * 1024) / sizeof(uint32);
+			for (int w = 0; w < check_words; w++) {
+				if (blocks_for_realloc[i][w] != (0x50000000 + (i << 16) + w)) {
+					eprintf("TC14: DATA CORRUPTION in block %d, word %d\n", i, w);
+					tc14_errors++;
+					break;
+				}
+			}
+		}
+	}
+	
+	if (tc14_errors == 0) {
+		eprintf("TC14: all blocks verified after selective reallocation - OK\n");
+	}
+	
+	// Cleanup
+	for (int i = 0; i < 10; i++) {
+		if (blocks_for_realloc[i] != NULL) {
+			efree(blocks_for_realloc[i]);
+		}
+	}
+
+	/* TC15: realloc to same size (should handle gracefully) */
+	eprintf("TC15: realloc to same size\n");
+	uint32* same_size_realloc = emalloc(15 * 1024);
+	if (same_size_realloc != NULL) {
+		// Write pattern
+		int write_words = (15 * 1024) / sizeof(uint32);
+		for (int w = 0; w < write_words; w++) {
+			same_size_realloc[w] = 0x77770000 + w;
+		}
+		
+		uint32* same_size_ptr = (uint32*)erealloc(same_size_realloc, 15 * 1024);
+		if (same_size_ptr != NULL) {
+			// Verify data
+			int verify_error = 0;
+			for (int w = 0; w < write_words; w++) {
+				if (same_size_ptr[w] != (0x77770000 + w)) {
+					eprintf("TC15: DATA CORRUPTION on same-size realloc\n");
+					verify_error = 1;
+					break;
+				}
+			}
+			if (!verify_error) {
+				eprintf("TC15: same-size realloc handled correctly - OK\n");
+			}
+			efree(same_size_ptr);
+		}
+	}
+
+	logalloc_dump_pool();
 	exit(0);
 
 
