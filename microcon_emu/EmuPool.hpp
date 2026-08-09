@@ -49,7 +49,8 @@ typedef struct {
 #define LOGALLOC_ERROR_INVALID_POINTER 2
 #define LOGALLOC_ERROR_MEMORY_CORRUPTION 3
 #define LOGALLOC_ERROR_ENDSENTINEL_BLOCK 4
-#define LOGALLOC_ERROR_UNKNOWN 5
+#define LOGALLOC_ERROR_NOT_ENOUGH_GAP 5 /* for expand_data_block */
+#define LOGALLOC_ERROR_UNKNOWN 6
 
 
 /* one bit per 1KB block */

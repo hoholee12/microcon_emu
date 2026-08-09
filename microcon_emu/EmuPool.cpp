@@ -804,21 +804,20 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
 #ifdef RELATIVE_INDEXING
 uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
 {
-    /* TODO  */
-}
-#else
-uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
-{
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
     m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
     /* get oldsize and gapsize */
-    uint32 nextblock_startidx = curr_header->next;
-    uint32 possible_gap_index = CONV_IDX_TO_ADDR(nextblock_startidx)->prev;
-    uint32 gapsize = (possible_gap_index == baseindex) ? 0 : (nextblock_startidx - possible_gap_index);
-    uint32 oldsize = (gapsize == 0) ? (nextblock_startidx - baseindex) : (possible_gap_index - baseindex);
+    uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
+    uint32 nextblock_startoffset = RELADR_NEXT_OFFSET(baseindex);
+    uint32 old_gap_index = RELADR_PREV_IDX(nextblock_startidx);
+    uint32 old_gap_offset = RELADR_PREV_OFFSET(nextblock_startidx);
+    uint32 gapsize = (old_gap_index == baseindex) ? 0 : (nextblock_startidx - old_gap_index);
+    uint32 oldsize = (gapsize == 0) ? (nextblock_startidx - baseindex) : (old_gap_index - baseindex);
     uint32 subtract_flag = 0;
     uint32 appendsize = 0;
+    uint32 post_gap_offset = 0;
+
     if (newsize > oldsize)
     {
         appendsize = newsize - oldsize;
@@ -828,35 +827,95 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
         subtract_flag = 1;
         appendsize = oldsize - newsize;
     }
-    else
+    else /* newsize == oldsize */
     {
         return LOGALLOC_OK; /* do nothing */
     }
     
     /* check if it can be expanded */
-    if ((subtract_flag == 0) && (gapsize >= appendsize))
+    if (gapsize > appendsize)
     {
-        /* we can expand the block in place */
-        if (gapsize == appendsize)
+        if (subtract_flag == 0)
         {
-            /* perfect fit, we can just update the next block's prev to point to new block */
-            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = baseindex;
+            /* increase prev index to new gap position */
+            post_gap_offset = old_gap_offset - appendsize;
+            RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
         }
         else
         {
-            /* we can fit more, we need to update the next block's prev to point to new block's next
-             * - we plant gap logic for future allocs here */
-            uint32 post_gap_index = baseindex + newsize;
-            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
-            /* TODO */
+            /* shrink instead */
+            post_gap_offset = old_gap_offset + appendsize;
+            RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
         }
-
-        return LOGALLOC_OK;
     }
-    else
+    else if (gapsize == appendsize)
     {
-        /* TODO */
+        /* perfect fit, we can just update the next block's prev to point to new block */
+        RELADR_HEAD_UPDATE(nextblock_startidx, nextblock_startoffset, RELADR_NEXT_OFFSET(nextblock_startidx));
     }
+    else /* gapsize < appendsize - return error */
+    {
+        return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+    }
+
+    return LOGALLOC_OK;
+}
+#else
+uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
+{
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - (sizeof(logalloc_block_header) / sizeof(uint32)); /* get header index from data pointer */
+    logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
+    m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+    /* get oldsize and gapsize */
+    uint32 nextblock_startidx = curr_header->next;
+    uint32 old_gap_index = CONV_IDX_TO_ADDR(nextblock_startidx)->prev;
+    uint32 gapsize = (old_gap_index == baseindex) ? 0 : (nextblock_startidx - old_gap_index);
+    uint32 oldsize = (gapsize == 0) ? (nextblock_startidx - baseindex) : (old_gap_index - baseindex);
+    uint32 subtract_flag = 0;
+    uint32 appendsize = 0;
+    uint32 post_gap_index = 0;
+
+    if (newsize > oldsize)
+    {
+        appendsize = newsize - oldsize;
+    }
+    else if (newsize < oldsize)
+    {
+        subtract_flag = 1;
+        appendsize = oldsize - newsize;
+    }
+    else /* newsize == oldsize */
+    {
+        return LOGALLOC_OK; /* do nothing */
+    }
+    
+    /* check if it can be expanded */
+    if (gapsize > appendsize)
+    {
+        if (subtract_flag == 0)
+        {
+            /* increase prev index to new gap position */
+            post_gap_index = old_gap_index + appendsize;
+            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+        }
+        else
+        {
+            /* shrink instead */
+            post_gap_index = old_gap_index - appendsize;
+            CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
+        }
+    }
+    else if (gapsize == appendsize)
+    {
+        /* update the next blocks prev to point to prev alloc block (to highlight no gap) */
+        CONV_IDX_TO_ADDR(nextblock_startidx)->prev = baseindex;
+    }
+    else /* gapsize < appendsize - return error */
+    {
+        return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+    }
+
+    return LOGALLOC_OK;
 }
 #endif
 
