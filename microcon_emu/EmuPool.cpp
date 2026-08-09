@@ -515,6 +515,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 uint32 align_words = align_bytes / sizeof(uint32);
                 uint32 gap_data_index = gap_index + header_words;
                 uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
+                m_assert(INLINE_HEADER_ALIGN_CHECK(aligned_data_index - header_words) == LOGALLOC_OK, "you cannot align to a value that is not a base of headersize");
                 if (gap_index < (aligned_data_index - header_words))
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
@@ -631,7 +632,6 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
     uint32 pre_gapsize = 0;
     uint32 middle_alloc_index = 0;
     uint32 pre_gap_poking_required = 0;
-    
 
     /* sanity check */
     m_assert(logalloc_pool_cap + blocksize < (MAX_POOL_SIZE / sizeof(uint32)), "logalloc pool out of memory");
@@ -687,6 +687,7 @@ void* logalloc_allocate_memory(uint32 bytecount, uint32 align_bytes)
                 uint32 align_words = align_bytes / sizeof(uint32);
                 uint32 gap_data_index = gap_index + header_words;
                 uint32 aligned_data_index = (gap_data_index + (align_words - 1)) & ~(align_words - 1);
+                m_assert(INLINE_HEADER_ALIGN_CHECK(aligned_data_index - header_words) == LOGALLOC_OK, "you cannot align to a value that is not a base of headersize");
                 if (gap_index < (aligned_data_index - header_words))
                 {
                     middle_alloc_index = (aligned_data_index - header_words);
@@ -816,6 +817,7 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
     uint32 subtract_flag = 0;
     uint32 appendsize = 0;
     uint32 post_gap_offset = 0;
+    uint32 post_gap_index = 0;
 
     if (newsize > oldsize)
     {
@@ -838,12 +840,22 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
         {
             /* increase prev index to new gap position */
             post_gap_offset = old_gap_offset - appendsize;
+            post_gap_index = old_gap_index + appendsize;
+            if (INLINE_HEADER_ALIGN_CHECK(post_gap_index) == LOGALLOC_ERROR_NOT_HEADER_ALIGNED)
+            {
+                return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+            }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
         }
         else
         {
             /* shrink instead */
             post_gap_offset = old_gap_offset + appendsize;
+            post_gap_index = old_gap_index - appendsize;
+            if (INLINE_HEADER_ALIGN_CHECK(post_gap_index) == LOGALLOC_ERROR_NOT_HEADER_ALIGNED)
+            {
+                return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+            }
             RELADR_HEAD_UPDATE(nextblock_startidx, post_gap_offset, RELADR_NEXT_OFFSET(nextblock_startidx));
         }
     }
@@ -895,12 +907,20 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
         {
             /* increase prev index to new gap position */
             post_gap_index = old_gap_index + appendsize;
+            if (INLINE_HEADER_ALIGN_CHECK(post_gap_index) == LOGALLOC_ERROR_NOT_HEADER_ALIGNED)
+            {
+                return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+            }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
         }
         else
         {
             /* shrink instead */
             post_gap_index = old_gap_index - appendsize;
+            if (INLINE_HEADER_ALIGN_CHECK(post_gap_index) == LOGALLOC_ERROR_NOT_HEADER_ALIGNED)
+            {
+                return LOGALLOC_ERROR_NOT_ENOUGH_GAP;
+            }
             CONV_IDX_TO_ADDR(nextblock_startidx)->prev = post_gap_index;
         }
     }
@@ -924,6 +944,8 @@ uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
     uint32 headersize = sizeof(logalloc_block_header) / sizeof(uint32);
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
     m_assert(RELADR_MAGIC_NUMBER(baseindex) == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+
+    m_assert(INLINE_HEADER_ALIGN_CHECK(newindex) == LOGALLOC_OK, "you cannot move to an index that is not aligned with headersize");
     
     uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
     uint32 prevblock_startidx = RELADR_PREV_IDX(baseindex);
@@ -1001,6 +1023,8 @@ uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
     uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
     logalloc_block_header* curr_header = CONV_IDX_TO_ADDR(baseindex);
     m_assert(curr_header->magic == MAGIC_NUMBER, "memory corruption, or you are passing an invalid pointer");
+
+    m_assert(INLINE_HEADER_ALIGN_CHECK(newindex) == LOGALLOC_OK, "you cannot move to an index that is not aligned with headersize");
     
     uint32 nextblock_startidx = curr_header->next;
     uint32 prevblock_startidx = curr_header->prev;

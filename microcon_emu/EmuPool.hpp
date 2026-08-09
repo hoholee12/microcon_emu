@@ -50,7 +50,8 @@ typedef struct {
 #define LOGALLOC_ERROR_MEMORY_CORRUPTION 3
 #define LOGALLOC_ERROR_ENDSENTINEL_BLOCK 4
 #define LOGALLOC_ERROR_NOT_ENOUGH_GAP 5 /* for expand_data_block */
-#define LOGALLOC_ERROR_UNKNOWN 6
+#define LOGALLOC_ERROR_NOT_HEADER_ALIGNED 6 /* for header align check */
+#define LOGALLOC_ERROR_UNKNOWN 7
 
 
 extern uint32* logalloc_pool;
@@ -106,7 +107,8 @@ extern void logalloc_relidxinit();
  * */
 
 /* decode function */
-static inline logalloc_block_header RELADR_HEAD_DECODE(uint32 index) {
+static inline logalloc_block_header RELADR_HEAD_DECODE(uint32 index)
+{
     logalloc_block_header result;
     result.firstword = (~index) ^ (CONV_IDX_TO_ADDR(index)->firstword);
     result.secondword = index ^ (CONV_IDX_TO_ADDR(index)->secondword);
@@ -114,7 +116,8 @@ static inline logalloc_block_header RELADR_HEAD_DECODE(uint32 index) {
 }
 
 /* encode function */
-static inline logalloc_block_header RELADR_HEAD_ENCODE(uint32 index, uint32 firstword, uint32 secondword) {
+static inline logalloc_block_header RELADR_HEAD_ENCODE(uint32 index, uint32 firstword, uint32 secondword)
+{
     logalloc_block_header result;
     result.firstword = (~index) ^ firstword;
     result.secondword = index ^ secondword;
@@ -122,7 +125,8 @@ static inline logalloc_block_header RELADR_HEAD_ENCODE(uint32 index, uint32 firs
 }
 
 /* update function for header update; internally uses encode function */
-static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 prevoffset, uint32 nextoffset) {
+static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 prevoffset, uint32 nextoffset)
+{
     uint32 firstword = MAGIC_NUMBER |
                        (((prevoffset) >> 16) & 0xFF) << 8 |
                        (((nextoffset) >> 16) & 0xFF) << 16 |
@@ -135,7 +139,8 @@ static inline void RELADR_HEAD_UPDATE(uint32 index, uint32 prevoffset, uint32 ne
 }
 
 /* update a free block header */
-static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 prevoffset) {
+static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 prevoffset)
+{
     uint32 firstword = MAGIC_NUMBER_FREE |
                        (((prevoffset) >> 16) & 0xFF) << 8 |
                        (((prevoffset) >> 8) & 0xFF) << 24;
@@ -146,7 +151,8 @@ static inline void RELADR_HEAD_UPDATE_FREE(uint32 index, uint32 prevoffset) {
     *CONV_IDX_TO_ADDR(index) = RELADR_HEAD_ENCODE(index, firstword, secondword);
 }
 
-static inline uint32 RELADR_NEXT_OFFSET(uint32 index) {
+static inline uint32 RELADR_NEXT_OFFSET(uint32 index)
+{
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
     uint32 next_offset = (((decoded.firstword >> 16) & 0xFF) << 16 |
             ((decoded.secondword >> 16) & 0xFF) << 8 |
@@ -154,7 +160,8 @@ static inline uint32 RELADR_NEXT_OFFSET(uint32 index) {
     return next_offset;
 }
 
-static inline uint32 RELADR_PREV_OFFSET(uint32 index) {
+static inline uint32 RELADR_PREV_OFFSET(uint32 index)
+{
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
     uint32 prev_offset = (((decoded.firstword >> 8) & 0xFF) << 16 |
             ((decoded.firstword >> 24) & 0xFF) << 8 |
@@ -163,40 +170,58 @@ static inline uint32 RELADR_PREV_OFFSET(uint32 index) {
 }
 
 /* get next and prev index functions; internally uses decode function */
-static inline uint32 RELADR_NEXT_IDX(uint32 index) {
+static inline uint32 RELADR_NEXT_IDX(uint32 index)
+{
     uint32 next_offset = RELADR_NEXT_OFFSET(index);
-    if (next_offset + index >= (MAX_POOL_SIZE / sizeof(uint32))) {
+    if (next_offset + index >= (MAX_POOL_SIZE / sizeof(uint32)))
+    {
         /* overflow wraparound 
          * for 1MB, 0x0~0x3FFFF is the valid range while 0x40000 and up wraps around */
         return next_offset - ((MAX_POOL_SIZE / sizeof(uint32)) - index);
     }
-    else {
+    else
+    {
         return index + next_offset;
     }
 }
 
-static inline uint32 RELADR_PREV_IDX(uint32 index) {
+static inline uint32 RELADR_PREV_IDX(uint32 index)
+{
     uint32 prev_offset = RELADR_PREV_OFFSET(index);
-    if (prev_offset > index) {
+    if (prev_offset > index)
+    {
         /* underflow wraparound
          * no wrap on 0x0, only wraps if net negative */
         return (MAX_POOL_SIZE / sizeof(uint32)) - (prev_offset - index);
     }
-    else {
+    else
+    {
         return index - prev_offset;
     }
 }
 
 /* get magic number function; internally uses decode function */
 /* if valid, this should only give value of 0xAA or 0xCC */
-static inline uint32 RELADR_MAGIC_NUMBER(uint32 index) {
+static inline uint32 RELADR_MAGIC_NUMBER(uint32 index)
+{
     logalloc_block_header decoded = RELADR_HEAD_DECODE(index);
     return ((decoded.firstword & 0xFF) | (decoded.secondword & 0xFF));
 }
 #endif
 
-
-
+/* base header align check
+ * required to make sure we dont lose accuracy while tracking capacity */
+static inline uint32 INLINE_HEADER_ALIGN_CHECK(uint32 index)
+{
+    if (index & (sizeof(logalloc_block_header) / sizeof(uint32) - 1) == 0)
+    {
+        return LOGALLOC_OK;
+    }
+    else
+    {
+        return LOGALLOC_ERROR_NOT_HEADER_ALIGNED;
+    }
+}
 
 
 #if defined(USE_EMUPOOL)
