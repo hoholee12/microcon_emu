@@ -1145,7 +1145,9 @@ void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
     {
         return ptr;
     }
+    logalloc_dump_pool();
     void* temp = logalloc_allocate_memory(size, align_bytes);
+    logalloc_dump_pool();
     memcpy(temp, ptr, size);
 
     logalloc_free_memory(ptr);

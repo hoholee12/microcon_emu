@@ -601,11 +601,13 @@ void Core_start(Thread_data* mydata) {
 			}
 		}
 	}
+	logalloc_dump_pool();
 	
 	// Reallocate every other block
 	for (int i = 0; i < 10; i += 2) {
 		if (blocks_for_realloc[i] != NULL) {
 			blocks_for_realloc[i] = (uint32*)erealloc(blocks_for_realloc[i], 20 * 1024);
+			logalloc_dump_pool();
 		}
 	}
 	
@@ -623,6 +625,7 @@ void Core_start(Thread_data* mydata) {
 			}
 		}
 	}
+	logalloc_dump_pool();
 	
 	if (tc14_errors == 0) {
 		eprintf("TC14: all blocks verified after selective reallocation - OK\n");
