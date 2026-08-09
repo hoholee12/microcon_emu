@@ -53,10 +53,11 @@ typedef struct {
 #define LOGALLOC_ERROR_UNKNOWN 6
 
 
-/* one bit per 1KB block */
 extern uint32* logalloc_pool;
 extern void* logalloc_allocate_clear_memory(uint32 size, uint32 align_bytes);
 extern void* logalloc_allocate_memory(uint32 size, uint32 align_bytes);
+extern uint32 logalloc_expand_datablock(void* ptr, uint32 newsize);
+extern uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex);
 extern void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes);
 extern void logalloc_free_memory(void* ptr);
 extern void logalloc_init();

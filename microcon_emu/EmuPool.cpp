@@ -920,14 +920,14 @@ uint32 logalloc_expand_datablock(void* ptr, uint32 newsize)
 #endif
 
 #ifdef RELATIVE_INDEXING
-uint32 logalloc_move_zero_datablock(void* ptr)
+uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 {
     /* TODO */
 }
 #else
-uint32 logalloc_move_zero_datablock(void* ptr)
+uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 {
-    /* TODO */
+    
 }
 #endif
 
