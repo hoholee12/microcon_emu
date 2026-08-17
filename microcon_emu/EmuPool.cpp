@@ -1181,15 +1181,10 @@ void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
     {
         return ptr;
     }
-    
-    logalloc_dump_pool();
     void* temp = logalloc_allocate_memory(size, align_bytes);
-    logalloc_dump_pool();
     /* we need to copy the old data to the new block with OLD size, not new 
      * logalloc_get_datablock_size returns size in WORDS, but memcpy expects BYTES */
     memcpy(temp, ptr, logalloc_get_datablock_size(ptr) * sizeof(uint32));
-    logalloc_dump_pool();
-
     logalloc_free_memory(ptr);
     return temp;
 }
