@@ -1138,6 +1138,42 @@ uint32 logalloc_move_zero_datablock(void* ptr, uint32 newindex)
 }
 #endif
 
+#ifdef RELATIVE_INDEXING
+uint32 logalloc_get_datablock_size(void* ptr)
+{
+    uint32 headersize = sizeof(logalloc_block_header) / sizeof(uint32);
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
+    uint32 nextblock_startidx = RELADR_NEXT_IDX(baseindex);
+    if (RELADR_PREV_IDX(nextblock_startidx) == baseindex)
+    {
+        /* alloc -> alloc */
+        return nextblock_startidx - baseindex - headersize;
+    }
+    else
+    {
+        /* alloc -> gap -> alloc */
+        return RELADR_PREV_IDX(nextblock_startidx) - baseindex - headersize;
+    }
+}
+#else
+uint32 logalloc_get_datablock_size(void* ptr)
+{
+    uint32 headersize = sizeof(logalloc_block_header) / sizeof(uint32);
+    uint32 baseindex = ((uint32*)ptr - logalloc_pool) - headersize; /* get header index from data pointer */
+    logalloc_block_header* header = CONV_IDX_TO_ADDR(baseindex);
+    if (CONV_IDX_TO_ADDR(header->next)->prev == baseindex)
+    {
+        /* alloc -> alloc */
+        return header->next - baseindex - headersize;
+    }
+    else
+    {
+        /* alloc -> gap -> alloc */
+        return CONV_IDX_TO_ADDR(header->next)->prev - baseindex - headersize;
+    }
+}
+#endif
+
 void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
 {
     uint32 result = logalloc_expand_datablock(ptr, size);
@@ -1148,7 +1184,9 @@ void* logalloc_realloc_memory(void* ptr, uint32 size, uint32 align_bytes)
     logalloc_dump_pool();
     void* temp = logalloc_allocate_memory(size, align_bytes);
     logalloc_dump_pool();
-    memcpy(temp, ptr, size);
+    /* we need to copy the old data to the new block with OLD size, not new */
+    memcpy(temp, ptr, logalloc_get_datablock_size(ptr));
+    logalloc_dump_pool();
 
     logalloc_free_memory(ptr);
     return temp;
