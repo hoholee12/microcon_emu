@@ -1,6 +1,10 @@
 
 import struct
 import os
+import glob
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from PIL import Image
 
 MAGIC_NUMBER_ALLOCATED = 0xAAAAAAAA
 MAGIC_NUMBER_FREED = 0xCCCCCCCC
@@ -574,8 +578,252 @@ class PoolValidator:
         self.print_summary()
         
         return len(self.errors) == 0
+    
+    def generate_visualization(self, output_filename):
+        """Generate a visual timeline of memory allocations"""
+        if not self.headers:
+            print("[ERROR] No headers to visualize")
+            return False
+        
+        print("\n[INFO] Generating visualization: {0}".format(output_filename))
+        
+        # Build index map
+        index_map = {h['index']: h for h in self.headers}
+        
+        # Find all allocated blocks and calculate their sizes
+        allocated_blocks = [h for h in self.headers if h.get('status') == 'ALLOCATED']
+        
+        total_size_words = self.pool_size_words
+        
+        # Calculate block sizes and identify gaps (freed blocks)
+        blocks_info = []
+        
+        for alloc in allocated_blocks:
+            alloc_idx = alloc['index']
+            next_idx = alloc['next']
+            
+            if next_idx not in index_map:
+                continue
+            
+            next_block = index_map[next_idx]
+            next_prev_idx = next_block['prev']
+            
+            if next_prev_idx != alloc_idx:
+                # Gap exists - there's a freed block between this allocated block and the next
+                if next_prev_idx in index_map:
+                    gap_block = index_map[next_prev_idx]
+                    
+                    # Allocated block size: from alloc_idx to gap block (freed block header)
+                    if next_prev_idx < alloc_idx:
+                        alloc_size = (total_size_words - alloc_idx) + next_prev_idx
+                    else:
+                        alloc_size = next_prev_idx - alloc_idx
+                    
+                    # Freed block size: from freed block header to next allocated block
+                    if next_idx < next_prev_idx:
+                        freed_size = (total_size_words - next_prev_idx) + next_idx
+                    else:
+                        freed_size = next_idx - next_prev_idx
+                    
+                    blocks_info.append({
+                        'start': alloc_idx,
+                        'size': alloc_size,
+                        'type': 'ALLOCATED'
+                    })
+                    
+                    # Only add freed block if it has non-zero size
+                    if freed_size > 0:
+                        blocks_info.append({
+                            'start': next_prev_idx,
+                            'size': freed_size,
+                            'type': 'FREED'
+                        })
+                else:
+                    # Gap exists but no freed block header found, use next_idx
+                    if next_idx < alloc_idx:
+                        alloc_size = (total_size_words - alloc_idx) + next_idx
+                    else:
+                        alloc_size = next_idx - alloc_idx
+                    
+                    blocks_info.append({
+                        'start': alloc_idx,
+                        'size': alloc_size,
+                        'type': 'ALLOCATED'
+                    })
+            else:
+                # No gap - allocated block extends to next allocated block
+                if next_idx < alloc_idx:
+                    block_size = (total_size_words - alloc_idx) + next_idx
+                else:
+                    block_size = next_idx - alloc_idx
+                
+                blocks_info.append({
+                    'start': alloc_idx,
+                    'size': block_size,
+                    'type': 'ALLOCATED'
+                })
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(16, 6))
+        
+        # Draw blocks
+        for block in blocks_info:
+            start = block['start']
+            size = block['size']
+            block_type = block['type']
+            
+            if block_type == 'ALLOCATED':
+                # Filled green box for allocated
+                rect = patches.Rectangle((start, 0), size, 1, 
+                                          linewidth=1, edgecolor='darkgreen', 
+                                          facecolor='green', alpha=0.7)
+                ax.add_patch(rect)
+            else:
+                # Empty box with dotted border for freed
+                rect = patches.Rectangle((start, 0), size, 1, 
+                                          linewidth=1.5, edgecolor='red', 
+                                          facecolor='none', linestyle='--')
+                ax.add_patch(rect)
+        
+        # Set axis properties
+        ax.set_xlim(0, total_size_words)
+        ax.set_ylim(-0.1, 1.1)
+        ax.set_xlabel('Memory Address (words)', fontsize=12)
+        ax.set_yticks([])
+        ax.set_title('Memory Allocation Map - {0}'.format(os.path.basename(self.filename)), fontsize=14)
+        
+        # Format x-axis to show hex addresses
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: '0x{0:06X}'.format(int(x))))
+        
+        # Add legend
+        allocated_patch = patches.Patch(color='green', alpha=0.7, label='Allocated')
+        freed_patch = patches.Patch(edgecolor='red', facecolor='none', 
+                                    linestyle='--', label='Freed')
+        ax.legend(handles=[allocated_patch, freed_patch], loc='upper right')
+        
+        # Add grid
+        ax.grid(True, alpha=0.3, axis='x')
+        
+        plt.tight_layout()
+        plt.savefig(output_filename, dpi=150)
+        plt.close()
+        
+        print("[OK] Visualization saved to {0}".format(output_filename))
+        return True
 
 
 if __name__ == "__main__":
-    validator = PoolValidator("logalloc_dump.bin")
-    success = validator.validate()
+    # Find all dump files matching the pattern logalloc_dump_*.bin
+    dump_files = sorted(glob.glob("logalloc_dump_*.bin"), 
+                       key=lambda x: int(x.split('_')[-1].split('.')[0]) if x.split('_')[-1].split('.')[0].isdigit() else 0)
+    
+    if not dump_files:
+        print("[ERROR] No dump files found matching pattern 'logalloc_dump_*.bin'")
+        exit(1)
+    
+    print("[INFO] Found {0} dump file(s): {1}".format(len(dump_files), ', '.join(dump_files)))
+    print("="*60)
+    
+    validators = []
+    png_files = []
+    
+    # First pass: Quick validation check to identify dumps with errors
+    print("\n[INFO] Quick validation pass to identify errors...")
+    import sys
+    dumps_with_errors = []
+    
+    for i, dump_file in enumerate(dump_files):
+        old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+        
+        validator = PoolValidator(dump_file)
+        if validator.read_file() and validator.detect_mode():
+            validator.find_debug_block()
+            if validator.mode == "FULL":
+                validator.parse_full_mode()
+            else:
+                validator.parse_relative_mode()
+            validator.calculate_capacity()
+            validator.check_magic_numbers()
+            validator.validate_links()
+        
+        sys.stdout.close()
+        sys.stdout = old_stdout
+        
+        if len(validator.errors) > 0:
+            dumps_with_errors.append(i)
+            print("[WARN] Dump {0} ({1}) has {2} error(s)".format(i, dump_file, len(validator.errors)))
+    
+    print("[INFO] Found {0} dump(s) with errors".format(len(dumps_with_errors)))
+    
+    # Second pass: Full processing with selective output
+    validators = []
+    for i, dump_file in enumerate(dump_files):
+        is_last = (i == len(dump_files) - 1)
+        has_errors = i in dumps_with_errors
+        should_print = is_last or has_errors
+        
+        if should_print:
+            print("\n" + "="*60)
+            print("Processing dump {0}: {1}".format(i, dump_file))
+            print("="*60)
+        
+        # Suppress output for non-last dumps without errors
+        if not should_print:
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
+        
+        validator = PoolValidator(dump_file)
+        success = validator.validate()
+        
+        # Restore stdout
+        if not should_print:
+            sys.stdout.close()
+            sys.stdout = old_stdout
+            print("[INFO] Processed dump {0}: {1}".format(i, dump_file))
+        
+        validators.append(validator)
+        
+        # Generate visualization for this dump
+        output_image = dump_file.replace('.bin', '.png')
+        validator.generate_visualization(output_image)
+        png_files.append(output_image)
+    
+    # Generate GIF animation from PNG files
+    print("\n" + "="*60)
+    print("GENERATING GIF ANIMATION")
+    print("="*60)
+    
+    try:
+        images = []
+        for png_file in png_files:
+            img = Image.open(png_file)
+            images.append(img)
+        
+        if images:
+            gif_filename = "logalloc_timelapse.gif"
+            # Save as GIF with 500ms per frame (2 fps)
+            images[0].save(
+                gif_filename,
+                save_all=True,
+                append_images=images[1:],
+                duration=500,
+                loop=0
+            )
+            print("[OK] GIF animation saved to {0}".format(gif_filename))
+            print("     Frames: {0}, Duration: 500ms per frame".format(len(images)))
+        else:
+            print("[ERROR] No images to create GIF")
+    except Exception as e:
+        print("[ERROR] Failed to create GIF: {0}".format(e))
+        print("[INFO] Make sure Pillow is installed: pip install Pillow")
+    
+    print("\n" + "="*60)
+    print("TIMELAPSE COMPLETE")
+    print("="*60)
+    print("Processed {0} dump(s)".format(len(validators)))
+    print("Generated {0} visualization(s)".format(len(validators)))
+    print("Dumps with errors: {0}".format(len(dumps_with_errors)))
+    print("Last dump validation: {0}".format('PASSED' if len(validators[-1].errors) == 0 else 'FAILED'))
+    print("="*60)
+

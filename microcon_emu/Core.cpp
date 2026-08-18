@@ -216,12 +216,12 @@ void Core_start(Thread_data* mydata) {
 	// efree(hello); // this should cause assertion error
 
 	/* memory allocator aging test */
+	/* TC1-TC8: Various allocation patterns to warm up the allocator */
 	/* TC1: allocate and free a 999KB block 1000 times */
 	for (int i = 0; i < 1000; i++) {
 		uint32* test = emalloc(999 * 1024);
 		efree(test);
 	}
-
 
 	/* TC2: allocate a 9KB block 1000 times */
 	for (int i = 0; i < 1000; i++) {
@@ -279,6 +279,9 @@ void Core_start(Thread_data* mydata) {
 		efree(test1);
 		efree(test3);
 	}
+	
+	/* DUMP 0: Baseline state after warmup tests */
+	logalloc_dump_pool();
 
 
 	/* TC9: test block coalescing of consecutive freed blocks */
@@ -325,6 +328,9 @@ void Core_start(Thread_data* mydata) {
 		coal_count++;
 	}
 	eprintf("TC9: allocated %d blocks, total actual size: %u bytes (%.2f KB)\n", coal_count, total_alloc_size, total_alloc_size / 1024.0);
+	
+	/* DUMP 1: Pool filled with 200 blocks - shows high allocation density */
+	logalloc_dump_pool();
 
 	// Free pattern: free 2 consecutive, keep 2 consecutive, repeat
 	eprintf("TC9: freeing pattern - free 2 consecutive, keep 2 consecutive, repeat\n");
@@ -379,6 +385,9 @@ void Core_start(Thread_data* mydata) {
 		}
 	}
 	eprintf("TC9: freed %d pairs, total freed size: %u bytes (%.2f KB)\n", freed_pairs, total_freed_size, total_freed_size / 1024.0);
+	
+	/* DUMP 2: Fragmentation pattern - alternating allocated/freed blocks */
+	logalloc_dump_pool();
 
 
 	// Try to allocate 10KB blocks into the coalesced gaps
@@ -404,6 +413,9 @@ void Core_start(Thread_data* mydata) {
 		eprintf("TC9: realloc %d at 0x%p - allocated\n", j, coal_realloc_blocks[j]);
 		realloc_count++;
 	}
+	
+	/* DUMP 3: New allocations filling the coalesced gaps */
+	logalloc_dump_pool();
 	
 	// Verify all blocks have correct data and different addresses
 	eprintf("TC9: verifying all %d blocks have unique addresses and correct data\n", realloc_count);
@@ -448,8 +460,6 @@ void Core_start(Thread_data* mydata) {
 	}
 	eprintf("TC9: cleanup complete\n");
 
-	logalloc_dump_pool();
-
 	/* TC10: basic realloc - grow smaller block to larger */
 	eprintf("TC10: basic realloc - grow block from 10KB to 50KB\n");
 	uint32* realloc_test = emalloc(10 * 1024);
@@ -459,11 +469,9 @@ void Core_start(Thread_data* mydata) {
 		for (int w = 0; w < write_words; w++) {
 			realloc_test[w] = 0xABCD0000 + w;
 		}
-		logalloc_dump_pool();
 		
 		// Reallocate to larger size
 		realloc_test = (uint32*)erealloc(realloc_test, 50 * 1024);
-		logalloc_dump_pool();
 		if (realloc_test != NULL) {
 			// Verify old data is preserved
 			int verify_error = 0;
@@ -487,7 +495,6 @@ void Core_start(Thread_data* mydata) {
 			efree(realloc_test);
 		}
 	}
-	logalloc_dump_pool();
 
 	/* TC11: basic realloc - shrink larger block to smaller */
 	eprintf("TC11: basic realloc - shrink block from 50KB to 10KB\n");
@@ -517,7 +524,6 @@ void Core_start(Thread_data* mydata) {
 			efree(realloc_shrink);
 		}
 	}
-	logalloc_dump_pool();
 
 	/* TC12: multiple successive reallocations on same block */
 	eprintf("TC12: multiple successive reallocations with size changes\n");
@@ -555,6 +561,8 @@ void Core_start(Thread_data* mydata) {
 		
 		efree(multi_realloc);
 	}
+	
+	/* DUMP 4: After multiple successive reallocations (grow/shrink cycles) */
 	logalloc_dump_pool();
 
 	/* TC13: stress test - rapid reallocations with different sizes */
@@ -584,7 +592,6 @@ void Core_start(Thread_data* mydata) {
 		}
 		efree(stress_realloc);
 	}
-	logalloc_dump_pool();
 
 	/* TC14: realloc with multiple blocks (check for corruption) */
 	eprintf("TC14: realloc with multiple active blocks\n");
@@ -607,9 +614,11 @@ void Core_start(Thread_data* mydata) {
 	for (int i = 0; i < 10; i += 2) {
 		if (blocks_for_realloc[i] != NULL) {
 			blocks_for_realloc[i] = (uint32*)erealloc(blocks_for_realloc[i], 20 * 1024);
-			logalloc_dump_pool();
 		}
 	}
+	
+	/* DUMP 5: Multiple blocks with selective reallocation (every other block grown) */
+	logalloc_dump_pool();
 	
 	// Verify all blocks still have correct data
 	int tc14_errors = 0;
@@ -625,7 +634,6 @@ void Core_start(Thread_data* mydata) {
 			}
 		}
 	}
-	logalloc_dump_pool();
 	
 	if (tc14_errors == 0) {
 		eprintf("TC14: all blocks verified after selective reallocation - OK\n");
@@ -637,7 +645,6 @@ void Core_start(Thread_data* mydata) {
 			efree(blocks_for_realloc[i]);
 		}
 	}
-	logalloc_dump_pool();
 
 	/* TC15: realloc to same size (should handle gracefully) */
 	eprintf("TC15: realloc to same size\n");
@@ -667,7 +674,9 @@ void Core_start(Thread_data* mydata) {
 		}
 	}
 
+	/* DUMP 6: Final state after all allocator tests complete */
 	logalloc_dump_pool();
+	
 	exit(0);
 
 

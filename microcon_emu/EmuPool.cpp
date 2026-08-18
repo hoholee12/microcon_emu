@@ -161,6 +161,7 @@ uint32 logalloc_pool_cap = 0;
 logalloc_debug_block* debug_block; /* pointer to debug block for debugging purposes */
 uint32 debug_block_init = 0;
 #endif
+uint32 dump_count = 0; /* track how many times the pool has been dumped */
 
 #ifdef RELATIVE_INDEXING
 void logalloc_init()
@@ -1204,18 +1205,20 @@ void logalloc_reposition_last_pos(void* ptr)
 
 void logalloc_dump_pool()
 {
-    FILE* outfile = fopen("logalloc_dump.bin", "wb");
-    
-    m_assert(outfile != NULL, "failed to open logalloc_dump.bin for writing");
+    char filename[256];
+    snprintf(filename, sizeof(filename), "logalloc_dump_%u.bin", dump_count++);
+    FILE* outfile = fopen(filename, "wb");
+
+    m_assert(outfile != NULL, "failed to open logalloc dump file for writing");
 
     /* write the entire logalloc_pool buffer to file */
     size_t written = fwrite(logalloc_pool, sizeof(uint32), MAX_POOL_SIZE / sizeof(uint32), outfile);
 
-    m_assert(written == (MAX_POOL_SIZE / sizeof(uint32)), "failed to write to logalloc_dump.bin");
+    m_assert(written == (MAX_POOL_SIZE / sizeof(uint32)), "failed to write to %s", filename);
 
     fclose(outfile);
 
-    printf("logalloc pool dumped to logalloc_dump.bin\n");
+    printf("logalloc pool dumped to %s\n", filename);
 }
 
 

@@ -3,7 +3,7 @@
 #include <string.h>
 
 /* to be - generated macros & variables */
-#define MAX_POOL_SIZE 0x2000000	/* 32MB */
+#define MAX_POOL_SIZE 0x180000	/* 1.5MB */
 #define USE_EMUPOOL /* uncomment to enable EMUPOOL */
 
 #define RELATIVE_INDEXING /* if defined, we will use relative indexing instead of absolute indexing, which will save space for prev and next index, but will limit the oneshot allocation from 4GB to 16MB */
